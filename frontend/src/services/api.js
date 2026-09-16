@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export async function apiRequest(
   endpoint,
@@ -21,8 +21,7 @@ export async function apiRequest(
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, options);
-
+  const response = await fetch(`${API_URL}${endpoint}`);
   const data = await response.json();
 
   if (!response.ok) {
