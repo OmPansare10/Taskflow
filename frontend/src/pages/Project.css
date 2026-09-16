@@ -1,0 +1,348 @@
+.project-page {
+  min-height: 100vh;
+  padding: 30px;
+}
+
+
+/* Header */
+
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+
+  margin-bottom: 30px;
+}
+
+.back-button {
+  display: inline-block;
+
+  color: #777;
+  text-decoration: none;
+
+  font-size: 14px;
+
+  margin-bottom: 12px;
+}
+
+.back-button:hover {
+  color: #222;
+}
+
+.project-header h1 {
+  font-size: 32px;
+  margin-bottom: 6px;
+}
+
+.project-header p {
+  color: #888;
+  font-size: 14px;
+}
+
+
+/* Actions */
+
+.project-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.secondary-button {
+  border: 1px solid rgba(100, 90, 50, 0.12);
+
+  background: rgba(255, 255, 255, 0.5);
+
+  padding: 11px 18px;
+
+  border-radius: 12px;
+
+  color: #555;
+}
+
+
+/* Kanban */
+
+.kanban {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(250px, 1fr));
+
+  gap: 18px;
+
+  align-items: start;
+}
+
+
+/* Column */
+
+.kanban-column {
+  min-height: 500px;
+
+  padding: 16px;
+
+  border-radius: 20px;
+
+  background: rgba(255, 255, 255, 0.28);
+
+  border: 1px solid
+    rgba(255, 255, 255, 0.5);
+}
+
+
+/* Column Header */
+
+.column-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 16px;
+}
+
+.column-title {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.column-title h2 {
+  font-size: 15px;
+
+  font-weight: 600;
+}
+
+.column-title span {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 23px;
+  height: 23px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.65);
+
+  color: #777;
+
+  font-size: 11px;
+}
+
+.column-menu {
+  border: none;
+
+  background: transparent;
+
+  font-size: 20px;
+
+  color: #888;
+}
+
+
+/* Tasks */
+
+.task-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+}
+
+
+/* Task Card */
+
+.task-card {
+  padding: 16px;
+
+  border-radius: 16px;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 30px
+    rgba(80, 70, 30, 0.12);
+}
+
+
+/* Task top */
+
+.task-top {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 12px;
+}
+
+.task-id {
+  font-size: 10px;
+
+  color: #999;
+
+  font-weight: 600;
+}
+
+
+/* Priority */
+
+.priority {
+  padding: 4px 8px;
+
+  border-radius: 6px;
+
+  font-size: 10px;
+
+  font-weight: 600;
+}
+
+.priority.low {
+  background: #e9f5df;
+  color: #5d803f;
+}
+
+.priority.medium {
+  background: #fff0c9;
+  color: #96721d;
+}
+
+.priority.high {
+  background: #ffe1d9;
+  color: #b14c35;
+}
+
+
+/* Task content */
+
+.task-card h3 {
+  font-size: 15px;
+
+  margin-bottom: 7px;
+}
+
+.task-card p {
+  color: #888;
+
+  font-size: 12px;
+
+  line-height: 1.5;
+
+  margin-bottom: 16px;
+}
+
+
+/* Task bottom */
+
+.task-bottom {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.task-user {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-width: 0;
+}
+
+.small-avatar {
+  width: 25px;
+  height: 25px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #f5d45b;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  font-size: 10px;
+
+  font-weight: 700;
+}
+
+.task-user span {
+  font-size: 11px;
+
+  color: #666;
+}
+
+.due-date {
+  font-size: 10px;
+
+  color: #888;
+
+  white-space: nowrap;
+}
+
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+
+  .kanban {
+    grid-template-columns:
+      repeat(2, minmax(250px, 1fr));
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .project-page {
+    padding: 15px;
+  }
+
+  .project-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 20px;
+  }
+
+  .project-header h1 {
+    font-size: 25px;
+  }
+
+  .project-actions {
+    width: 100%;
+  }
+
+  .project-actions button {
+    flex: 1;
+  }
+
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+
+}

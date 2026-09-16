@@ -1,0 +1,429 @@
+.team-page {
+  min-height: 100vh;
+  padding: 35px;
+}
+
+.team-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 18px;
+}
+
+.member-card {
+  padding: 24px;
+
+  border-radius: 20px;
+
+  text-align: center;
+}
+
+.member-avatar {
+  width: 60px;
+  height: 60px;
+
+  margin: 0 auto 15px;
+
+  border-radius: 50%;
+
+  background: #f5d45b;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.member-card h2 {
+  font-size: 17px;
+  margin-bottom: 5px;
+}
+
+.member-email {
+  color: #999;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.member-role {
+  display: inline-block;
+
+  padding: 6px 10px;
+
+  border-radius: 8px;
+
+  background: rgba(245, 212, 91, 0.35);
+
+  color: #77601c;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.member-stats {
+  display: flex;
+
+  justify-content: center;
+
+  gap: 35px;
+
+  margin-top: 22px;
+
+  padding-top: 18px;
+
+  border-top: 1px solid
+    rgba(100, 90, 50, 0.1);
+}
+
+.member-stats div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 3px;
+}
+
+.member-stats strong {
+  font-size: 18px;
+}
+
+.member-stats span {
+  color: #999;
+  font-size: 10px;
+}
+
+@media (max-width: 1000px) {
+
+  .team-grid {
+    grid-template-columns:
+      repeat(2, 1fr);
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .team-page {
+    padding: 20px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+.team-empty-state {
+  max-width: 620px;
+  margin: 50px auto 0;
+  padding: 48px 30px;
+  border-radius: 22px;
+  text-align: center;
+}
+
+.team-empty-icon {
+  margin-bottom: 14px;
+  font-size: 42px;
+}
+
+.team-empty-state h2 {
+  margin: 0 0 8px;
+  color: #40371f;
+}
+
+.team-empty-state p {
+  margin: 0 auto 24px;
+  max-width: 420px;
+  color: #766c55;
+}
+
+.team-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(620px, 100%);
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border-radius: 14px;
+}
+
+.team-search span {
+  font-size: 16px;
+}
+
+.team-search input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #40371f;
+  font: inherit;
+}
+
+.team-search-clear {
+  border: none;
+  background: transparent;
+  color: #3766a5;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove-member-button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(170, 70, 50, 0.18);
+  border-radius: 10px;
+  background: rgba(210, 90, 70, 0.08);
+  color: #a34b3a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remove-member-button:hover {
+  background: rgba(210, 90, 70, 0.15);
+}
+
+.remove-member-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.member-readonly-note {
+  display: block;
+  margin-top: 18px;
+  color: #9a8e73;
+  font-size: 10px;
+}
+
+.team-add-panel {
+  margin-bottom: 24px;
+  padding: 20px;
+  border-radius: 18px;
+}
+
+.team-add-panel h2 {
+  margin: 0 0 5px;
+  color: #40371f;
+  font-size: 18px;
+}
+
+.team-add-panel p {
+  margin: 0 0 16px;
+  color: #766c55;
+  font-size: 13px;
+}
+
+.team-account-search,
+.account-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-account-search input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(100, 85, 50, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #40371f;
+  font: inherit;
+}
+
+.team-account-search input {
+  flex: 1;
+}
+
+.account-result {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(100, 85, 50, 0.1);
+}
+
+.account-result > div {
+  min-width: 180px;
+  flex: 1;
+}
+
+.account-result strong,
+.account-result span {
+  display: block;
+}
+
+.account-result strong {
+  color: #40371f;
+}
+
+.account-result span {
+  margin-top: 3px;
+  color: #766c55;
+  font-size: 12px;
+}
+
+.team-project-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.team-project-picker label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #40371f;
+}
+
+.team-project-picker select {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(100, 85, 50, 0.2);
+  background: rgba(255, 255, 255, 0.8);
+  font: inherit;
+  color: #40371f;
+  outline: none;
+  cursor: pointer;
+}
+
+.team-project-single {
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #766c55;
+}
+
+.team-project-single strong {
+  color: #40371f;
+}
+
+.team-no-projects-note {
+  margin-bottom: 16px;
+  color: #a34b3a;
+  font-size: 13px;
+}
+
+.account-result-card {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(100, 85, 50, 0.12);
+}
+
+.account-result-badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8c7329;
+}
+
+.account-result-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.account-result-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f5d45b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: #40371f;
+  flex-shrink: 0;
+}
+
+.account-result-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.account-result-info strong {
+  color: #40371f;
+  font-size: 15px;
+}
+
+.account-result-email {
+  color: #766c55;
+  font-size: 13px;
+}
+
+.account-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.account-result-actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+body.dark-mode .account-result-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .account-result-info strong,
+body.dark-mode .team-project-picker label,
+body.dark-mode .team-project-single strong {
+  color: #f0ede6;
+}
+
+body.dark-mode .team-project-picker select {
+  background: rgba(35, 39, 46, 0.9);
+  color: #f0ede6;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+body.dark-mode .account-result-email,
+body.dark-mode .team-project-single {
+  color: #b7bec8;
+}
+
+body.dark-mode .account-result-badge {
+  color: #f5d45b;
+}
+
+@media (max-width: 700px) {
+  .team-account-search,
+  .account-result {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .team-account-search input,
+  .account-result button {
+    width: 100%;
+  }
+
+  .account-result-actions {
+    justify-content: stretch;
+  }
+
+  .account-result-actions button {
+    width: 100%;
+  }
+}
