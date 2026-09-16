@@ -1,6 +1,8 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 function ProjectTasks() {
   const { id } = useParams();
@@ -61,7 +63,7 @@ function ProjectTasks() {
     const token = getToken();
 
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}`,
+      `${API_URL}/projects/${id}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -88,7 +90,7 @@ function ProjectTasks() {
     const token = getToken();
 
     const response = await fetch(
-      `http://127.0.0.1:8000/tasks/project/${id}`,
+      `${API_URL}/tasks/project/${id}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -119,7 +121,7 @@ function ProjectTasks() {
     const token = getToken();
 
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}/members`,
+      `${API_URL}/projects/${id}/members`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -187,7 +189,7 @@ function ProjectTasks() {
       const token = getToken();
 
       const response = await fetch(
-        "http://127.0.0.1:8000/tasks/",
+        `${API_URL}/tasks/`,
         {
           method: "POST",
           headers: {
@@ -246,7 +248,7 @@ function ProjectTasks() {
       const token = getToken();
 
       const response = await fetch(
-        `http://127.0.0.1:8000/tasks/${selectedTask._id}`,
+        `${API_URL}/tasks/${selectedTask._id}`,
         {
           method: "PUT",
           headers: {
@@ -273,7 +275,7 @@ function ProjectTasks() {
        */
       if (selectedTask.status === "todo") {
         const statusResponse = await fetch(
-          `http://127.0.0.1:8000/tasks/${selectedTask._id}/status`,
+          `${API_URL}/tasks/${selectedTask._id}/status`,
           {
             method: "PATCH",
             headers: {
@@ -325,7 +327,7 @@ function ProjectTasks() {
       const token = getToken();
 
       const response = await fetch(
-        `http://127.0.0.1:8000/tasks/${taskId}/status`,
+        `${API_URL}/tasks/${taskId}/status`,
         {
           method: "PATCH",
           headers: {
@@ -384,7 +386,7 @@ function ProjectTasks() {
         String(draggedTask.assigned_to || "") !== String(currentUserId)
       ) {
         const assignResponse = await fetch(
-          `http://127.0.0.1:8000/tasks/${draggedTask._id}`,
+          `${API_URL}/tasks/${draggedTask._id}`,
           {
             method: "PUT",
             headers: {
@@ -407,7 +409,7 @@ function ProjectTasks() {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8000/tasks/${draggedTask._id}/status`,
+        `${API_URL}/tasks/${draggedTask._id}/status`,
         {
           method: "PATCH",
           headers: {

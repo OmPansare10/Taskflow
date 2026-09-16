@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function Project() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -17,7 +19,7 @@ function Project() {
     const token = localStorage.getItem("access_token");
 
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}`,
+      `${API_URL}/projects/${id}`,
       {
         method: "GET",
         headers: {
@@ -39,7 +41,7 @@ function Project() {
     const token = localStorage.getItem("access_token");
 
     const response = await fetch(
-      `http://127.0.0.1:8000/tasks/project/${id}`,
+      `${API_URL}/tasks/project/${id}`,
       {
         method: "GET",
         headers: {
@@ -61,7 +63,7 @@ function Project() {
     const token = localStorage.getItem("access_token");
 
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}/members`,
+      `${API_URL}/projects/${id}/members`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./Team.css";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function Team() {
   const { user } = useAuth();
   const [teamMembers, setTeamMembers] = useState([]);
@@ -26,7 +28,7 @@ function Team() {
         Authorization: `Bearer ${token}`,
       };
 
-      const response = await fetch("http://127.0.0.1:8000/team/members", {
+      const response = await fetch(`${API_URL}/team/members`, {
         headers,
       });
       const data = await response.json();
@@ -65,7 +67,7 @@ function Team() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/team/members/${memberId}`,
+        `${API_URL}/team/members/${memberId}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
@@ -103,7 +105,7 @@ function Team() {
       setAccountResult(null);
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://127.0.0.1:8000/auth/users/search?identifier=${encodeURIComponent(accountSearch.trim())}`,
+        `${API_URL}/auth/users/search?identifier=${encodeURIComponent(accountSearch.trim())}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await response.json();
@@ -134,7 +136,7 @@ function Team() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        "http://127.0.0.1:8000/team/members",
+        `${API_URL}/team/members`,
         {
           method: "POST",
           headers: {

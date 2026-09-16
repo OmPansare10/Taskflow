@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function Projects() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -31,7 +33,7 @@ function Projects() {
     for (const project of projectList) {
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/tasks/project/${project._id}`,
+          `${API_URL}/tasks/project/${project._id}`,
           {
             method: "GET",
             headers: {
@@ -68,7 +70,7 @@ function Projects() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        "http://127.0.0.1:8000/projects/",
+        `${API_URL}/projects/`,
         {
           method: "GET",
           headers: {
@@ -128,7 +130,7 @@ function Projects() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        "http://127.0.0.1:8000/projects/",
+        `${API_URL}/projects/`,
         {
           method: "POST",
 
@@ -191,7 +193,7 @@ function Projects() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/projects/${projectId}`,
+        `${API_URL}/projects/${projectId}`,
         {
           method: "DELETE",
 
@@ -236,7 +238,7 @@ function Projects() {
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/projects/${projectId}/leave`,
+        `${API_URL}/projects/${projectId}/leave`,
         {
           method: "DELETE",
           headers: {

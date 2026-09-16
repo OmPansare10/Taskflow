@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function ProjectMembers() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -57,7 +59,7 @@ function ProjectMembers() {
   const fetchProject = async () => {
     const token = localStorage.getItem("access_token");
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}`,
+      `${API_URL}/projects/${id}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -78,7 +80,7 @@ function ProjectMembers() {
   const fetchMembers = async () => {
     const token = localStorage.getItem("access_token");
     const response = await fetch(
-      `http://127.0.0.1:8000/projects/${id}/members`,
+      `${API_URL}/projects/${id}/members`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -104,7 +106,7 @@ function ProjectMembers() {
   const fetchTeam = async () => {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch("http://127.0.0.1:8000/team/members", {
+      const response = await fetch(`${API_URL}/team/members`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -163,7 +165,7 @@ function ProjectMembers() {
 
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://127.0.0.1:8000/auth/users/search?identifier=${encodeURIComponent(query.trim())}`,
+        `${API_URL}/auth/users/search?identifier=${encodeURIComponent(query.trim())}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -200,7 +202,7 @@ function ProjectMembers() {
 
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://127.0.0.1:8000/projects/${id}/members`,
+        `${API_URL}/projects/${id}/members`,
         {
           method: "POST",
           headers: {
@@ -239,7 +241,7 @@ function ProjectMembers() {
 
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://127.0.0.1:8000/projects/${id}/members`,
+        `${API_URL}/projects/${id}/members`,
         {
           method: "POST",
           headers: {
@@ -285,7 +287,7 @@ function ProjectMembers() {
 
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://127.0.0.1:8000/projects/${id}/members/${memberId}`,
+        `${API_URL}/projects/${id}/members/${memberId}`,
         {
           method: "DELETE",
           headers: {
