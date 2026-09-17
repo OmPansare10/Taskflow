@@ -20,6 +20,7 @@ import ProjectMembers from "./pages/ProjectMembers";
 import ProjectTasks from "./pages/ProjectTasks";
 import TaskDetails from "./pages/TaskDetails";
 import Analytics from "./pages/Analytics";
+import AdminPortfolio from "./pages/AdminPortfolio";
 
 import ProtectedRoute from "./component/ProtectedRoute";
 import NotificationBell from "./component/NotificationBell";
@@ -92,13 +93,6 @@ function SidebarLayout({ children }) {
           </Link>
 
           <Link
-            to="/analytics"
-            className={`nav-item ${location.pathname === "/analytics" ? "active" : ""}`}
-          >
-            Analytics
-          </Link>
-
-          <Link
             to="/projects"
             className={`nav-item ${isProjectsActive ? "active" : ""}`}
           >
@@ -110,6 +104,20 @@ function SidebarLayout({ children }) {
             className={`nav-item ${location.pathname === "/team" ? "active" : ""}`}
           >
             Team
+          </Link>
+
+          <Link
+            to="/analytics"
+            className={`nav-item ${location.pathname === "/analytics" ? "active" : ""}`}
+          >
+            Analytics
+          </Link>
+
+          <Link
+            to="/admin-portfolio"
+            className={`nav-item ${location.pathname === "/admin-portfolio" ? "active" : ""}`}
+          >
+            Admin Portfolio
           </Link>
         </nav>
 
@@ -976,6 +984,22 @@ function App() {
             <ProtectedRoute>
               <SidebarLayout>
                 <Analytics />
+              </SidebarLayout>
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* =================================================
+            ADMIN PORTFOLIO OVERVIEW
+            ================================================= */}
+
+        <Route
+          path="/admin-portfolio"
+          element={
+            <ProtectedRoute>
+              <SidebarLayout>
+                <AdminPortfolio />
               </SidebarLayout>
             </ProtectedRoute>
           }
