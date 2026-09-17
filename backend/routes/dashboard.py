@@ -125,11 +125,13 @@ def get_dashboard_analytics(
     # RECENT TASKS
     # =========================================================
 
+    min_utc = datetime.min.replace(tzinfo=timezone.utc)
+
     recent_tasks = sorted(
         tasks,
         key=lambda task: task.get(
             "updated_at",
-            task.get("created_at", datetime.min)
+            task.get("created_at", min_utc)
         ),
         reverse=True
     )[:5]

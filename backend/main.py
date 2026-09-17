@@ -29,10 +29,14 @@ app.add_middleware(
         # Local development
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
 
-        # Production - Vercel
+        # Production
         "https://taskflow-bwxq.onrender.com",
+        "https://frontend-om-pansare.vercel.app",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
