@@ -1416,13 +1416,20 @@ function ProjectTasks() {
             }
           >
 
-            <h2>
-              Create New Task
-            </h2>
-
-            <p>
-              Add a task to this project.
-            </p>
+            <div className="modal-header">
+              <div>
+                <h2>Create New Task</h2>
+                <p>Add a task to this project.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowModal(false)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
 
 
             <form
@@ -1577,15 +1584,24 @@ function ProjectTasks() {
             }
           >
 
-            <h2>
-              Assign Task
-            </h2>
-
-            <p>
-              Assign "
-              {selectedTask?.title}
-              " to a team member.
-            </p>
+            <div className="modal-header">
+              <div>
+                <h2>Assign Task</h2>
+                <p>Assign "{selectedTask?.title}" to a team member.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedTask(null);
+                  setSelectedMember("");
+                }}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
 
 
             <form
