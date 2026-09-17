@@ -93,10 +93,17 @@ function Project() {
       });
       if (response.ok) {
         const data = await response.json();
-        setActivities(data || []);
+        const activityList = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.activities)
+          ? data.activities
+          : [];
+        setActivities(activityList);
+      } else {
+        setActivities([]);
       }
     } catch {
-      // Activity load failure is non-blocking
+      setActivities([]);
     }
   };
 
@@ -688,67 +695,76 @@ function Project() {
       {/* =================================================
           PROJECT AUDIT TRAIL / ACTIVITY FEED
       ================================================= */}
-      <section className="project-panel glass" style={{ marginTop: "2rem" }}>
-        <div className="panel-header">
-          <div>
-            <h2>Project Activity & Audit Trail</h2>
-            <p>Real-time audit log of changes and status updates</p>
-          </div>
-          <span className="task-status-pill" style={{ background: "rgba(99, 102, 241, 0.15)", color: "#6366f1" }}>
-            {activities.length} Events Logged
-          </span>
-        </div>
-
-        {activities.length === 0 ? (
-          <div className="empty-state" style={{ padding: "2rem", textAlign: "center" }}>
-            <div className="empty-icon">📜</div>
-            <p style={{ color: "var(--text-muted)" }}>No activity recorded yet for this project.</p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
-            {activities.map((act) => (
-              <div
-                key={act.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.75rem 1rem",
-                  borderRadius: "8px",
-                  background: "var(--bg-tertiary, rgba(255,255,255,0.03))",
-                  border: "1px solid var(--border-color, rgba(255,255,255,0.08))"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <span style={{ fontSize: "1.2rem" }}>⚡</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                      {act.user_name}{" "}
-                      <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
-                        {act.action}
-                      </span>
-                    </div>
-                    {act.details && (
-                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        {act.details}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                  {new Date(act.timestamp).toLocaleString("en-IN", {
-                    month: "short",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
+      {(() => {
+        const safeActivities = Array.isArray(activities) ? activities : [];
+        return (
+          <section className="project-panel glass" style={{ marginTop: "2rem" }}>
+            <div className="panel-header">
+              <div>
+                <h2>Project Activity & Audit Trail</h2>
+                <p>Real-time audit log of changes and status updates</p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+              <span className="task-status-pill" style={{ background: "rgba(99, 102, 241, 0.15)", color: "#6366f1" }}>
+                {safeActivities.length} Events Logged
+              </span>
+            </div>
+
+            {safeActivities.length === 0 ? (
+              <div className="empty-state" style={{ padding: "2rem", textAlign: "center" }}>
+                <div className="empty-icon">📜</div>
+                <p style={{ color: "var(--text-muted)" }}>No activity recorded yet for this project.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
+                {safeActivities.map((act, index) => (
+                  <div
+                    key={act.id || index}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "8px",
+                      background: "var(--bg-tertiary, rgba(255,255,255,0.03))",
+                      border: "1px solid var(--border-color, rgba(255,255,255,0.08))"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <span style={{ fontSize: "1.2rem" }}>⚡</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+                          {act.title || act.user_name || "Activity Event"}{" "}
+                          {act.action && (
+                            <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
+                              {act.action}
+                            </span>
+                          )}
+                        </div>
+                        {(act.description || act.details) && (
+                          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                            {act.description || act.details}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      {act.timestamp
+                        ? new Date(act.timestamp).toLocaleString("en-IN", {
+                            month: "short",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Just now"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
     </div>
   );
