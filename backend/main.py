@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+
 from routes.comments import router as comments_router
 from routes.team import router as team_router
 from database import client
@@ -25,7 +26,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173"
+        # Local development
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+
+        # Production - Vercel
+        "https://taskflow-bwxq.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -44,6 +50,7 @@ app.include_router(notifications_router)
 app.include_router(comments_router)
 app.include_router(dashboard_router)
 app.include_router(team_router)
+
 
 # =========================================================
 # ROOT
@@ -64,7 +71,6 @@ def root():
 def health_check():
 
     try:
-
         client.admin.command("ping")
 
         return {
