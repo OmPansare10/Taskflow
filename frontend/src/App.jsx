@@ -377,92 +377,7 @@ const [loading, setLoading] = useState(true);
   // =========================================================
 
   return (
-
-    <div className="app-shell">
-
-
-      {/* =====================================================
-          SIDEBAR
-          ===================================================== */}
-
-      <aside className="sidebar glass">
-
-        <div className="brand">
-          TaskFlow
-        </div>
-
-
-        {/* USER */}
-
-        <Link to="/profile" className="sidebar-user">
-
-          <div className="avatar">
-            {user?.name?.charAt(0)?.toUpperCase()}
-          </div>
-
-          <div>
-
-            <strong>
-              {user?.name}
-            </strong>
-
-            <span>
-              {user?.email}
-            </span>
-
-          </div>
-
-        </Link>
-
-
-        {/* NAVIGATION */}
-
-        <nav className="sidebar-nav">
-
-          <Link
-            to="/"
-            className="nav-item active"
-          >
-            Dashboard
-          </Link>
-
-
-          <Link
-            to="/projects"
-            className="nav-item"
-          >
-            Projects
-          </Link>
-
-
-          <Link
-            to="/team"
-            className="nav-item"
-          >
-            Team
-          </Link>
-
-        </nav>
-
-
-        {/* LOGOUT */}
-
-        <button
-          className="logout-btn"
-          onClick={handleLogout}
-        >
-          Logout
-        </button>
-
-      </aside>
-
-
-      {/* =====================================================
-          MAIN CONTENT
-          ===================================================== */}
-
-      <main className="main-content">
-
+    <div className="dashboard-page">
 
         {/* ===================================================
             HEADER
@@ -791,8 +706,6 @@ const [loading, setLoading] = useState(true);
 
         </section>
 
-      </main>
-
 
       {/* =====================================================
           CREATE PROJECT MODAL
@@ -968,7 +881,9 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <SidebarLayout>
+                <Dashboard />
+              </SidebarLayout>
             </ProtectedRoute>
           }
         />
