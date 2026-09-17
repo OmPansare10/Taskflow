@@ -53,6 +53,12 @@ function SidebarLayout({ children }) {
   const location = useLocation();
   const [darkMode, toggleTheme] = useTheme();
 
+  // Global Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+
   const isProjectsActive =
     location.pathname === "/projects" ||
     location.pathname.startsWith("/project/");
@@ -61,6 +67,35 @@ function SidebarLayout({ children }) {
     logout();
     navigate("/login");
   };
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      setShowSearchOverlay(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const token = localStorage.getItem("access_token");
+        const data = await apiRequest(
+          `/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`,
+          "GET",
+          null,
+          token
+        );
+        setSearchResults(data);
+        setShowSearchOverlay(true);
+      } catch (err) {
+        console.error("Global search error:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   return (
     <div className="app-shell">
@@ -137,6 +172,140 @@ function SidebarLayout({ children }) {
       </aside>
 
       <main className="main-content">
+        {/* Global Search Header Bar */}
+        <header className="global-header-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", position: "relative" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: "450px" }}>
+            <input
+              type="text"
+              placeholder="Search tasks, projects, members..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => searchQuery.trim() && setShowSearchOverlay(true)}
+              style={{
+                width: "100%",
+                padding: "0.65rem 1rem 0.65rem 2.5rem",
+                borderRadius: "12px",
+                border: "1px solid var(--border-color, #e2e8f0)",
+                background: "var(--bg-card, #ffffff)",
+                color: "var(--text-primary, #0f172a)",
+                fontSize: "0.9rem",
+                outline: "none",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+              }}
+            />
+            <span style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }}>
+              🔍
+            </span>
+
+            {/* Global Search Results Dropdown Overlay */}
+            {showSearchOverlay && searchResults && (
+              <div
+                className="search-results-overlay glass"
+                style={{
+                  position: "absolute",
+                  top: "115%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 200,
+                  background: "#ffffff",
+                  borderRadius: "14px",
+                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                  padding: "0.85rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "0.5rem", marginBottom: "0.5rem", borderBottom: "1px solid #f1f5f9" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Search Results</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSearchOverlay(false)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "0.9rem" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {isSearching ? (
+                  <p style={{ padding: "0.75rem", fontSize: "0.85rem", color: "#64748b" }}>Searching...</p>
+                ) : (
+                  <>
+                    {/* Projects */}
+                    {searchResults.projects?.length > 0 && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#4f46e5", marginBottom: "0.35rem" }}>📁 Projects</div>
+                        {searchResults.projects.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              navigate(`/project/${p.id}`);
+                              setShowSearchOverlay(false);
+                              setSearchQuery("");
+                            }}
+                            style={{ padding: "0.45rem 0.65rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "#0f172a" }}
+                            className="search-item-hover"
+                          >
+                            {p.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tasks */}
+                    {searchResults.tasks?.length > 0 && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#4f46e5", marginBottom: "0.35rem" }}>☑ Tasks</div>
+                        {searchResults.tasks.map((t) => (
+                          <div
+                            key={t.id}
+                            onClick={() => {
+                              navigate(`/task/${t.id}`);
+                              setShowSearchOverlay(false);
+                              setSearchQuery("");
+                            }}
+                            style={{ padding: "0.45rem 0.65rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", display: "flex", justifyContent: "space-between" }}
+                            className="search-item-hover"
+                          >
+                            <span style={{ fontWeight: 600, color: "#0f172a" }}>{t.title}</span>
+                            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{t.project_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Members */}
+                    {searchResults.members?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#4f46e5", marginBottom: "0.35rem" }}>👤 Team Members (Read-Only)</div>
+                        {searchResults.members.map((m) => (
+                          <div
+                            key={m.id}
+                            onClick={() => {
+                              navigate(`/team`);
+                              setShowSearchOverlay(false);
+                              setSearchQuery("");
+                            }}
+                            style={{ padding: "0.45rem 0.65rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", display: "flex", justifyContent: "space-between" }}
+                            className="search-item-hover"
+                          >
+                            <span style={{ fontWeight: 600, color: "#0f172a" }}>{m.name}</span>
+                            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{m.email}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!searchResults.projects?.length && !searchResults.tasks?.length && !searchResults.members?.length && (
+                      <p style={{ padding: "0.75rem", fontSize: "0.85rem", color: "#64748b", fontStyle: "italic" }}>No matching results found.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </header>
+
         {children}
       </main>
     </div>
@@ -144,680 +313,574 @@ function SidebarLayout({ children }) {
 }
 
 function Dashboard() {
-
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [darkMode, toggleTheme] = useTheme();
 
-  const [projects, setProjects] = useState([]);
-const [tasks, setTasks] = useState([]);
-
-const [analytics, setAnalytics] = useState(null);
-
-const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [myWorkFilter, setMyWorkFilter] = useState("all");
 
   const [showModal, setShowModal] = useState(false);
-
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
 
-  const [error, setError] = useState("");
-
-
-  // =========================================================
-  // LOAD PROJECTS AND TASKS
-  // =========================================================
-
   const loadDashboard = async () => {
-
     try {
-
       setLoading(true);
       setError("");
-
       const token = localStorage.getItem("access_token");
 
-
-      // -----------------------------------------------------
-      // GET PROJECTS
-      // -----------------------------------------------------
-
-      const projectData = await apiRequest(
-        "/projects/",
-        "GET",
-        null,
-        token
-      );
-
-      const projectList = Array.isArray(projectData)
-        ? projectData
-        : projectData.projects || [];
-
-      setProjects(projectList);
-
-
-      // -----------------------------------------------------
-      // GET TASKS FROM EVERY PROJECT
-      // -----------------------------------------------------
-
-      let allTasks = [];
-
-      for (const project of projectList) {
-
-        try {
-
-          const taskData = await apiRequest(
-            `/tasks/project/${project._id}`,
-            "GET",
-            null,
-            token
-          );
-
-          const projectTasks = Array.isArray(taskData)
-            ? taskData
-            : taskData.tasks || [];
-
-          allTasks = [
-            ...allTasks,
-            ...projectTasks
-          ];
-
-        } catch (taskError) {
-
-          console.log(
-            `Could not load tasks for project ${project._id}`
-          );
-
-        }
-
-      }
-
-      setTasks(allTasks);
-
-      // -----------------------------------------------------
-      // GET DASHBOARD ANALYTICS
-      // -----------------------------------------------------
-
-      try {
-        const analyticsData = await apiRequest(
-          "/dashboard/analytics",
-          "GET",
-          null,
-          token
-        );
-
-        setAnalytics(analyticsData);
-      } catch (analyticsError) {
-        console.error(
-          "Could not load dashboard analytics:",
-          analyticsError
-        );
-      }
-
-    } catch (error) {
-
-      console.error(error);
-
-      setError(
-        error.message || "Unable to load dashboard"
-      );
-
+      const data = await apiRequest("/dashboard/summary", "GET", null, token);
+      setSummary(data);
+    } catch (err) {
+      console.error("Dashboard summary load error:", err);
+      setError(err.message || "Failed to load dashboard summary");
     } finally {
-
       setLoading(false);
-
     }
-
   };
 
-
   useEffect(() => {
-
     loadDashboard();
-
   }, []);
 
-
-  // =========================================================
-  // CREATE PROJECT
-  // =========================================================
-
   const handleCreateProject = async (e) => {
-
     e.preventDefault();
-
-    if (!projectName.trim()) {
-      return;
-    }
+    if (!projectName.trim()) return;
 
     try {
-
       const token = localStorage.getItem("access_token");
-
       await apiRequest(
         "/projects/",
         "POST",
         {
           name: projectName.trim(),
-          description: projectDescription.trim()
+          description: projectDescription.trim(),
         },
         token
       );
-
       setProjectName("");
       setProjectDescription("");
-
       setShowModal(false);
-
       await loadDashboard();
-
-    } catch (error) {
-
-      alert(
-        error.message || "Failed to create project"
-      );
-
+    } catch (err) {
+      alert(err.message || "Failed to create project");
     }
-
   };
 
-
-  // =========================================================
-  // LOGOUT
-  // =========================================================
-
-  const handleLogout = () => {
-
-    logout();
-
-    navigate("/login");
-
+  const getFilteredMyWork = () => {
+    if (!summary?.my_work) return [];
+    if (myWorkFilter === "today") return summary.my_work.filter((t) => t.is_due_today);
+    if (myWorkFilter === "upcoming") return summary.my_work.filter((t) => t.is_due_soon);
+    if (myWorkFilter === "overdue") return summary.my_work.filter((t) => t.is_overdue);
+    return summary.my_work;
   };
-
-
-  // =========================================================
-  // STATISTICS
-  // =========================================================
-
-  const totalProjects = projects.length;
-
-  const totalTasks = tasks.length;
-
-  const reviewTasks = tasks.filter(
-    task => task.status === "review"
-  ).length;
-
-  const completedTasks = tasks.filter(
-    task => task.status === "completed"
-  ).length;
-
-
-  // =========================================================
-  // LOADING
-  // =========================================================
 
   if (loading) {
-
     return (
-
       <div className="loading-page">
-
-        <div className="loading-text">
-          Loading TaskFlow...
-        </div>
-
+        <div className="loading-text">Loading TaskFlow Command Center...</div>
       </div>
-
     );
-
   }
 
+  const kpis = summary?.kpis || {
+    total_projects: 0,
+    total_tasks: 0,
+    review: 0,
+    completed: 0,
+    overdue: 0,
+    completion_percentage: 0,
+  };
 
-  // =========================================================
-  // DASHBOARD UI
-  // =========================================================
+  const attention = summary?.attention_required || {
+    overdue_tasks: 0,
+    review_tasks: 0,
+    unassigned_tasks: 0,
+    due_today_tasks: 0,
+  };
+
+  const myWorkList = getFilteredMyWork();
+  const upcomingDeadlines = summary?.upcoming_deadlines || [];
+  const projectsHealth = summary?.projects_health || [];
+  const teamWorkload = summary?.team_workload || [];
+  const recentActivity = summary?.recent_activity || [];
+  const userRole = summary?.user?.role || "Developer";
 
   return (
     <div className="dashboard-page">
-
-        {/* ===================================================
-            HEADER
-            =================================================== */}
-
-        <div className="page-header">
-
-          <div>
-
-            <p className="eyebrow">
-              Welcome back
-            </p>
-
-            <h1>
-              {user?.name} 👋
-            </h1>
-
-            <p className="page-subtitle">
-              Here's what's happening with your projects.
-            </p>
-
-          </div>
-
-
-          {/* HEADER ACTIONS */}
-
-          <div className="dashboard-actions">
-
-            <NotificationBell />
-
-            <button
-              type="button"
-              className="theme-header-toggle"
-              onClick={toggleTheme}
-              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {darkMode ? "☀️" : "🌙"}
-            </button>
-
-            <button
-              className="primary-btn"
-              onClick={() => setShowModal(true)}
-            >
-              + New Project
-            </button>
-
-          </div>
-
+      {/* HEADER */}
+      <div className="page-header">
+        <div>
+          <p className="eyebrow">{userRole} Command Center</p>
+          <h1>Welcome back, {user?.name || "Team Member"} 👋</h1>
+          <p className="page-subtitle">Real-time workspace performance and actionable priority queue.</p>
         </div>
 
+        <div className="dashboard-actions">
+          <NotificationBell />
 
-        {/* ===================================================
-            ERROR
-            =================================================== */}
+          <button
+            type="button"
+            className="theme-header-toggle"
+            onClick={toggleTheme}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? "☀️" : "🌙"}
+          </button>
 
-        {error && (
+          <button className="primary-btn" onClick={() => setShowModal(true)}>
+            + New Project
+          </button>
+        </div>
+      </div>
 
-          <div className="error-message glass">
-            {error}
+      {error && <div className="error-message glass">{error}</div>}
+
+      {/* FEATURE 9: IMPROVED KPI SUMMARY CARDS */}
+      <section className="stats-grid">
+        <div className="stat-card glass">
+          <span className="stat-label">Total Projects</span>
+          <strong className="stat-number">{kpis.total_projects}</strong>
+          <span className="stat-description">Active workspace projects</span>
+        </div>
+
+        <div className="stat-card glass">
+          <span className="stat-label">Total Tasks</span>
+          <strong className="stat-number">{kpis.total_tasks}</strong>
+          <span className="stat-description">Across all projects</span>
+        </div>
+
+        <div className="stat-card glass">
+          <span className="stat-label">In Review</span>
+          <strong className="stat-number">{kpis.review}</strong>
+          <span className="stat-description">Tasks waiting for review</span>
+        </div>
+
+        <div className="stat-card glass">
+          <span className="stat-label">Completed</span>
+          <strong className="stat-number">{kpis.completed}</strong>
+          <span className="stat-description">{kpis.completion_percentage}% completion rate</span>
+        </div>
+
+        <div className="stat-card glass">
+          <span className="stat-label">Overdue</span>
+          <strong className="stat-number" style={{ color: kpis.overdue > 0 ? "#dc2626" : "inherit" }}>
+            {kpis.overdue}
+          </strong>
+          <span className="stat-description">{kpis.overdue > 0 ? "Needs attention" : "All on schedule"}</span>
+        </div>
+      </section>
+
+      {/* FEATURE 3: ATTENTION REQUIRED CARD */}
+      <section className="dashboard-card glass" style={{ marginTop: "1.5rem", padding: "1.25rem 1.5rem" }}>
+        <div className="section-heading" style={{ marginBottom: "1rem" }}>
+          <div>
+            <h2>⚠️ Attention Required</h2>
+            <p>Real-time actionable items that need immediate team focus</p>
           </div>
+        </div>
 
-        )}
-
-
-        {/* ===================================================
-            STATISTICS
-            =================================================== */}
-
-        <section className="stats-grid">
-
-
-          {/* TOTAL PROJECTS */}
-
-          <div className="stat-card glass">
-
-            <span className="stat-label">
-              Total Projects
-            </span>
-
-            <strong className="stat-number">
-              {analytics?.total_projects ?? totalProjects}
-            </strong>
-
-            <span className="stat-description">
-              Active projects
-            </span>
-
-          </div>
-
-
-          {/* TOTAL TASKS */}
-
-          <div className="stat-card glass">
-
-            <span className="stat-label">
-              Total Tasks
-            </span>
-
-            <strong className="stat-number">
-              {analytics?.total_tasks ?? totalTasks}
-            </strong>
-
-            <span className="stat-description">
-              Across all projects
-            </span>
-
-          </div>
-
-
-          {/* REVIEW */}
-
-          <div className="stat-card glass">
-
-            <span className="stat-label">
-              In Review
-            </span>
-
-            <strong className="stat-number">
-              {analytics?.review ?? reviewTasks}
-            </strong>
-
-            <span className="stat-description">
-              Waiting for review
-            </span>
-
-          </div>
-
-
-          {/* COMPLETED */}
-
-          <div className="stat-card glass">
-
-            <span className="stat-label">
-              Completed
-            </span>
-
-            <strong className="stat-number">
-              {analytics?.completed ?? completedTasks}
-            </strong>
-
-            <span className="stat-description">
-              Finished tasks
-            </span>
-
-          </div>
-
-
-          {/* OVERDUE */}
-
-          <div className="stat-card glass">
-
-            <span className="stat-label">
-              Overdue
-            </span>
-
-            <strong className="stat-number">
-              {analytics?.overdue ?? 0}
-            </strong>
-
-            <span className="stat-description">
-              Tasks past due date
-            </span>
-
-          </div>
-
-        </section>
-
-
-
-        {/* ===================================================
-            PROJECTS
-            =================================================== */}
-
-        <section className="dashboard-card glass">
-
-          <div className="section-heading">
-
-            <div>
-
-              <h2>
-                Your Projects
-              </h2>
-
-              <p>
-                Projects you own or are a member of
-              </p>
-
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+          <div
+            onClick={() => navigate("/projects")}
+            style={{ padding: "1rem", borderRadius: "12px", background: attention.overdue_tasks > 0 ? "#fef2f2" : "#f8fafc", border: "1px solid #fee2e2", cursor: "pointer", transition: "transform 0.15s ease" }}
+          >
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: attention.overdue_tasks > 0 ? "#dc2626" : "#475569" }}>
+              {attention.overdue_tasks}
             </div>
-
-            <Link
-              to="/projects"
-              className="secondary-btn"
-            >
-              View All
-            </Link>
-
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#0f172a" }}>Overdue Tasks</div>
+            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Past due date</span>
           </div>
-
-
-          {projects.length === 0 ? (
-
-            <div className="empty-state">
-
-              <div className="empty-icon">
-                +
-              </div>
-
-              <p>
-                No projects yet.
-              </p>
-
-              <button
-                className="primary-btn"
-                onClick={() => setShowModal(true)}
-              >
-                Create Your First Project
-              </button>
-
-            </div>
-
-          ) : (
-
-            <div className="project-grid">
-
-              {projects
-                .slice(0, 4)
-                .map(project => {
-
-                  const projectTasks =
-                    tasks.filter(
-                      task =>
-                        task.project_id === project._id
-                    );
-
-
-                  const projectCompleted =
-                    projectTasks.filter(
-                      task =>
-                        task.status === "completed"
-                    ).length;
-
-
-                  const projectProgress =
-                    projectTasks.length === 0
-                      ? 0
-                      : Math.round(
-                          (projectCompleted /
-                            projectTasks.length) *
-                          100
-                        );
-
-
-                  return (
-
-                    <Link
-                      key={project._id}
-                      to={`/project/${project._id}`}
-                      className="project-card glass"
-                    >
-
-                      <div className="project-card-top">
-
-                        <div className="project-icon">
-                          {project.name
-                            ?.charAt(0)
-                            ?.toUpperCase()}
-                        </div>
-
-                        <span>
-                          {projectTasks.length} tasks
-                        </span>
-
-                      </div>
-
-
-                      <h3>
-                        {project.name}
-                      </h3>
-
-
-                      <p>
-                        {project.description ||
-                          "No description provided."}
-                      </p>
-
-
-                      <div className="project-progress">
-
-                        <div className="project-progress-header">
-
-                          <span>
-                            Progress
-                          </span>
-
-                          <strong>
-                            {projectProgress}%
-                          </strong>
-
-                        </div>
-
-
-                        <div className="progress-bar">
-
-                          <div
-                            className="progress-fill"
-                            style={{
-                              width:
-                                `${projectProgress}%`
-                            }}
-                          />
-
-                        </div>
-
-                      </div>
-
-                    </Link>
-
-                  );
-
-                })}
-
-            </div>
-
-          )}
-
-        </section>
-
-
-      {/* =====================================================
-          CREATE PROJECT MODAL
-          ===================================================== */}
-
-      {showModal && (
-
-        <div
-          className="modal-overlay"
-          onClick={() => setShowModal(false)}
-        >
 
           <div
-            className="modal glass project-modal"
-            onClick={e => e.stopPropagation()}
+            onClick={() => navigate("/projects")}
+            style={{ padding: "1rem", borderRadius: "12px", background: attention.review_tasks > 0 ? "#fffbeb" : "#f8fafc", border: "1px solid #fef3c7", cursor: "pointer", transition: "transform 0.15s ease" }}
           >
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: attention.review_tasks > 0 ? "#d97706" : "#475569" }}>
+              {attention.review_tasks}
+            </div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#0f172a" }}>Tasks Waiting for Review</div>
+            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Awaiting owner approval</span>
+          </div>
 
-            <div className="modal-header">
+          <div
+            onClick={() => navigate("/projects")}
+            style={{ padding: "1rem", borderRadius: "12px", background: "#f0f9ff", border: "1px solid #e0f2fe", cursor: "pointer", transition: "transform 0.15s ease" }}
+          >
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0284c7" }}>
+              {attention.unassigned_tasks}
+            </div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#0f172a" }}>Unassigned Tasks</div>
+            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Needs assignment</span>
+          </div>
 
-              <div>
+          <div
+            onClick={() => navigate("/projects")}
+            style={{ padding: "1rem", borderRadius: "12px", background: "#f5f3ff", border: "1px solid #ede9fe", cursor: "pointer", transition: "transform 0.15s ease" }}
+          >
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#4f46e5" }}>
+              {attention.due_today_tasks}
+            </div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#0f172a" }}>Tasks Due Today</div>
+            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Action needed today</span>
+          </div>
+        </div>
+      </section>
 
-                <span className="modal-eyebrow">
-                  New Project
-                </span>
-
-                <h2>
-                  Create Project
-                </h2>
-
-              </div>
-
-
-              <button
-                className="modal-close"
-                onClick={() => setShowModal(false)}
-              >
-                ×
-              </button>
-
+      {/* TWO COLUMN WORKSPACE LAYOUT */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "1.5rem", marginTop: "1.5rem" }}>
+        {/* FEATURE 1: MY WORK */}
+        <section className="dashboard-card glass" style={{ padding: "1.25rem 1.5rem" }}>
+          <div className="section-heading" style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h2>📌 My Work</h2>
+              <p>Tasks assigned specifically to you</p>
             </div>
 
+            {/* Filter Tabs */}
+            <div style={{ display: "flex", gap: "0.35rem", background: "#f1f5f9", padding: "3px", borderRadius: "8px" }}>
+              {["all", "today", "upcoming", "overdue"].map((filterKey) => (
+                <button
+                  key={filterKey}
+                  type="button"
+                  onClick={() => setMyWorkFilter(filterKey)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: myWorkFilter === filterKey ? "#ffffff" : "transparent",
+                    color: myWorkFilter === filterKey ? "#4f46e5" : "#64748b",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textTransform: "capitalize",
+                    boxShadow: myWorkFilter === filterKey ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  {filterKey}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <form
-              onSubmit={handleCreateProject}
-            >
+          {myWorkList.length === 0 ? (
+            <div className="empty-state" style={{ padding: "2rem", textStyle: "italic", textAlign: "center" }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎉</div>
+              <p style={{ fontWeight: 600, color: "#0f172a" }}>You're all caught up</p>
+              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>No tasks are currently assigned to you in this filter.</span>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {myWorkList.map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => navigate(`/task/${task.id}`)}
+                  style={{
+                    padding: "0.85rem 1rem",
+                    borderRadius: "10px",
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                  className="search-item-hover"
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "#0f172a" }}>{task.title}</div>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "2px" }}>
+                      {task.project_name} • <span style={{ fontWeight: 500 }}>{task.status.toUpperCase()}</span>
+                    </div>
+                  </div>
 
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        background: task.priority === "High" ? "#fee2e2" : task.priority === "Medium" ? "#fef3c7" : "#d1fae5",
+                        color: task.priority === "High" ? "#dc2626" : task.priority === "Medium" ? "#d97706" : "#059669",
+                      }}
+                    >
+                      {task.priority}
+                    </span>
+
+                    {task.due_date && (
+                      <span style={{ fontSize: "0.75rem", color: task.is_overdue ? "#dc2626" : "#64748b", fontWeight: task.is_overdue ? 700 : 400 }}>
+                        {task.is_overdue ? "⚠️ Overdue" : task.is_due_today ? "📅 Today" : task.due_date}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* FEATURE 2: UPCOMING DEADLINES */}
+        <section className="dashboard-card glass" style={{ padding: "1.25rem 1.5rem" }}>
+          <div className="section-heading" style={{ marginBottom: "1rem" }}>
+            <div>
+              <h2>⏳ Upcoming Deadlines</h2>
+              <p>Tasks ordered by nearest due date</p>
+            </div>
+          </div>
+
+          {upcomingDeadlines.length === 0 ? (
+            <div className="empty-state" style={{ padding: "2rem", textAlign: "center" }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📅</div>
+              <p style={{ fontWeight: 600, color: "#0f172a" }}>No upcoming deadlines</p>
+              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>You're completely on schedule.</span>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {upcomingDeadlines.map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => navigate(`/task/${task.id}`)}
+                  style={{
+                    padding: "0.85rem 1rem",
+                    borderRadius: "10px",
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  className="search-item-hover"
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "#0f172a" }}>{task.title}</div>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>{task.project_name}</div>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      background: task.is_overdue ? "#fee2e2" : task.is_due_today ? "#fef3c7" : "#e0f2fe",
+                      color: task.is_overdue ? "#dc2626" : task.is_due_today ? "#d97706" : "#0284c7",
+                    }}
+                  >
+                    {task.is_overdue ? "Overdue" : task.is_due_today ? "Today" : task.due_date}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* FEATURE 4: PROJECT HEALTH & FEATURE 5: TEAM WORKLOAD */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "1.5rem", marginTop: "1.5rem" }}>
+        {/* PROJECT HEALTH */}
+        <section className="dashboard-card glass" style={{ padding: "1.25rem 1.5rem" }}>
+          <div className="section-heading" style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h2>📊 Project Health</h2>
+              <p>Transparent progress and health rules across your projects</p>
+            </div>
+
+            <Link to="/projects" className="secondary-btn" style={{ fontSize: "0.8rem", padding: "6px 12px" }}>
+              All Projects
+            </Link>
+          </div>
+
+          {projectsHealth.length === 0 ? (
+            <div className="empty-state" style={{ padding: "2rem", textAlign: "center" }}>
+              <p style={{ fontWeight: 600, color: "#0f172a" }}>No projects yet</p>
+              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Create your first project to get started.</span>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {projectsHealth.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => navigate(`/project/${p.id}`)}
+                  style={{ padding: "1rem", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                  className="search-item-hover"
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <strong style={{ fontSize: "1rem", color: "#0f172a" }}>{p.name}</strong>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        background: p.health_status === "Delayed" ? "#fee2e2" : p.health_status === "Attention" ? "#fef3c7" : "#d1fae5",
+                        color: p.health_status === "Delayed" ? "#dc2626" : p.health_status === "Attention" ? "#d97706" : "#059669",
+                      }}
+                    >
+                      ● {p.health_status}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                    <div style={{ flex: 1, height: "8px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${p.completion_percentage}%`,
+                          background: "linear-gradient(90deg, #4f46e5, #10b981)",
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>{p.completion_percentage}%</span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "1rem", fontSize: "0.8rem", color: "#64748b" }}>
+                    <span>Total: <strong>{p.total_tasks}</strong></span>
+                    <span>Done: <strong>{p.completed_tasks}</strong></span>
+                    <span>Review: <strong>{p.review_tasks}</strong></span>
+                    {p.overdue_tasks > 0 && <span style={{ color: "#dc2626", fontWeight: 600 }}>Overdue: {p.overdue_tasks}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* TEAM WORKLOAD SUMMARY & RECENT ACTIVITY */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* FEATURE 5: TEAM WORKLOAD SUMMARY */}
+          <section className="dashboard-card glass" style={{ padding: "1.25rem 1.5rem" }}>
+            <div className="section-heading" style={{ marginBottom: "1rem" }}>
+              <div>
+                <h2>👥 Team Workload Summary</h2>
+                <p>Active task distribution across project members</p>
+              </div>
+            </div>
+
+            {teamWorkload.length === 0 ? (
+              <div className="empty-state" style={{ padding: "1.5rem", textAlign: "center" }}>
+                <span style={{ fontSize: "0.85rem", color: "#64748b" }}>No team members active.</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {teamWorkload.map((m) => (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", justifyBetween: "space-between", gap: "1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", width: "140px" }}>
+                      <div className="avatar" style={{ width: "28px", height: "28px", fontSize: "0.75rem" }}>
+                        {m.avatar}
+                      </div>
+                      <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {m.name}
+                      </span>
+                    </div>
+
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${Math.min(100, (m.active_tasks / Math.max(1, kpis.total_tasks)) * 100 * 2)}%`,
+                            background: "#4f46e5",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#4f46e5", whiteSpace: "nowrap" }}>
+                        {m.active_tasks} active tasks
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* FEATURE 6: RECENT ACTIVITY */}
+          <section className="dashboard-card glass" style={{ padding: "1.25rem 1.5rem" }}>
+            <div className="section-heading" style={{ marginBottom: "1rem" }}>
+              <div>
+                <h2>📜 Recent Activity</h2>
+                <p>Latest updates across your projects</p>
+              </div>
+            </div>
+
+            {recentActivity.length === 0 ? (
+              <div className="empty-state" style={{ padding: "1.5rem", textAlign: "center" }}>
+                <span style={{ fontSize: "0.85rem", color: "#64748b" }}>No recent activity yet.</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                {recentActivity.map((act) => (
+                  <div key={act.id} style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.85rem" }}>
+                    <span>⚡</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ color: "#0f172a", fontWeight: 500 }}>{act.action}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* CREATE PROJECT MODAL */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal glass project-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <span className="modal-eyebrow">New Project</span>
+                <h2>Create Project</h2>
+              </div>
+
+              <button className="modal-close" onClick={() => setShowModal(false)}>
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProject}>
               <div className="form-group project-form-group">
-                <label>
-                  Project Name
-                </label>
-
+                <label>Project Name</label>
                 <input
                   type="text"
                   value={projectName}
-                  onChange={e =>
-                    setProjectName(e.target.value)
-                  }
+                  onChange={(e) => setProjectName(e.target.value)}
                   placeholder="Enter project name"
                   required
                 />
               </div>
 
-
               <div className="form-group project-form-group">
-                <label>
-                  Description
-                </label>
-
+                <label>Description</label>
                 <textarea
                   value={projectDescription}
-                  onChange={e =>
-                    setProjectDescription(e.target.value)
-                  }
+                  onChange={(e) => setProjectDescription(e.target.value)}
                   placeholder="Describe your project"
                   rows="4"
                 />
               </div>
 
-
               <div className="modal-actions">
-
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() =>
-                    setShowModal(false)
-                  }
-                >
+                <button type="button" className="secondary-btn" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
 
-
-                <button
-                  type="submit"
-                  className="primary-btn"
-                >
+                <button type="submit" className="primary-btn">
                   Create Project
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </div>
-
       )}
-
     </div>
-
   );
 }
 

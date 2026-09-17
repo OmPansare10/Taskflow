@@ -441,4 +441,339 @@ def get_admin_overview(
         "portfolio_overdue_tasks": portfolio_overdue_tasks,
         "average_completion_rate": avg_completion,
         "projects": project_list
-    }
+    }
+
+
+# =========================================================
+# REAL-WORLD DASHBOARD SUMMARY API
+# =========================================================
+
+@router.get("/summary")
+def get_dashboard_summary(
+    current_user=Depends(get_current_user)
+):
+    """Fetch complete aggregated real-world metrics for the user dashboard."""
+    current_user_id = str(current_user["_id"])
+    today_date = datetime.now(timezone.utc).date()
+
+    # 1. Accessible Projects
+    projects = list(
+        db.projects.find({
+            "$or": [
+                {"owner_id": current_user_id},
+                {"members": current_user_id}
+            ]
+        })
+    )
+
+    project_map = {str(p["_id"]): p.get("name", "Untitled Project") for p in projects}
+    project_ids = list(project_map.keys())
+
+    # 2. Accessible Tasks
+    tasks = list(db.tasks.find({"project_id": {"$in": project_ids}})) if project_ids else []
+
+    total_projects = len(projects)
+    total_tasks = len(tasks)
+
+    # 3. Status Breakdown & Overdue Calculation
+    todo_count = 0
+    assigned_count = 0
+    review_count = 0
+    completed_count = 0
+    overdue_count = 0
+    unassigned_count = 0
+    due_today_count = 0
+
+    my_work_raw = []
+    upcoming_deadlines_raw = []
+
+    for task in tasks:
+        t_id = str(task["_id"])
+        status = task.get("status", "todo")
+        assigned_to = str(task.get("assigned_to", "")) if task.get("assigned_to") else ""
+        due_date_str = task.get("due_date", "")
+        p_id = str(task.get("project_id", ""))
+        p_name = project_map.get(p_id, "Project")
+
+        # Counts
+        if status == "todo":
+            todo_count += 1
+        elif status == "assigned":
+            assigned_count += 1
+        elif status == "review":
+            review_count += 1
+        elif status == "completed":
+            completed_count += 1
+
+        if not assigned_to:
+            unassigned_count += 1
+
+        # Due Date Analysis
+        is_overdue = False
+        is_due_today = False
+        is_due_soon = False
+
+        if due_date_str and status != "completed":
+            try:
+                due_d = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                if due_d < today_date:
+                    is_overdue = True
+                    overdue_count += 1
+                elif due_d == today_date:
+                    is_due_today = True
+                    due_today_count += 1
+                elif today_date < due_d <= (today_date + timedelta(days=7)):
+                    is_due_soon = True
+            except (ValueError, TypeError):
+                pass
+
+        formatted_task = {
+            "id": t_id,
+            "title": task.get("title", ""),
+            "description": task.get("description", ""),
+            "status": status,
+            "priority": task.get("priority", "Medium"),
+            "project_id": p_id,
+            "project_name": p_name,
+            "assigned_to": assigned_to,
+            "due_date": due_date_str,
+            "is_overdue": is_overdue,
+            "is_due_today": is_due_today,
+            "is_due_soon": is_due_soon,
+            "updated_at": task.get("updated_at")
+        }
+
+        # Feature 1: My Work (tasks assigned to current user)
+        if assigned_to == current_user_id:
+            my_work_raw.append(formatted_task)
+
+        # Feature 2: Upcoming Deadlines (non-completed tasks with due date)
+        if due_date_str and status != "completed":
+            upcoming_deadlines_raw.append(formatted_task)
+
+    # Sort Upcoming Deadlines by due_date ascending
+    upcoming_deadlines_raw.sort(key=lambda t: t.get("due_date") or "9999-99-99")
+
+    completion_pct = round((completed_count / total_tasks) * 100, 1) if total_tasks > 0 else 0.0
+
+    # 4. Feature 4: Project Health (with transparent rules)
+    project_health_list = []
+    for project in projects:
+        p_id = str(project["_id"])
+        p_tasks = [t for t in tasks if str(t.get("project_id")) == p_id]
+        p_total = len(p_tasks)
+        p_completed = sum(1 for t in p_tasks if t.get("status") == "completed")
+        p_review = sum(1 for t in p_tasks if t.get("status") == "review")
+        p_overdue = 0
+        for t in p_tasks:
+            d_str = t.get("due_date")
+            if d_str and t.get("status") != "completed":
+                try:
+                    if datetime.strptime(d_str, "%Y-%m-%d").date() < today_date:
+                        p_overdue += 1
+                except (ValueError, TypeError):
+                    pass
+
+        p_pct = round((p_completed / p_total) * 100, 1) if p_total > 0 else 0.0
+
+        # Transparent Health Rule:
+        # - Delayed: If overdue tasks exist (>0)
+        # - Attention: If no overdue tasks, but review tasks >= 2 or low progress (<30% when total >= 3)
+        # - On Track: Otherwise
+        if p_overdue > 0:
+            health_status = "Delayed"
+            health_color = "red"
+        elif p_review >= 2 or (p_total >= 3 and p_pct < 30.0):
+            health_status = "Attention"
+            health_color = "amber"
+        else:
+            health_status = "On Track"
+            health_color = "green"
+
+        project_health_list.append({
+            "id": p_id,
+            "name": project.get("name", "Untitled"),
+            "description": project.get("description", ""),
+            "completion_percentage": p_pct,
+            "total_tasks": p_total,
+            "completed_tasks": p_completed,
+            "review_tasks": p_review,
+            "overdue_tasks": p_overdue,
+            "health_status": health_status,
+            "health_color": health_color
+        })
+
+    # 5. Feature 5: Team Workload Summary (across user's accessible projects)
+    member_ids = set()
+    for p in projects:
+        member_ids.add(str(p.get("owner_id")))
+        for m in p.get("members", []):
+            member_ids.add(str(m))
+
+    valid_member_oids = [ObjectId(m) for m in member_ids if ObjectId.is_valid(m)]
+    member_users = list(db.users.find({"_id": {"$in": valid_member_oids}})) if valid_member_oids else []
+
+    team_workload_list = []
+    for u in member_users:
+        u_id = str(u["_id"])
+        active_count = sum(1 for t in tasks if str(t.get("assigned_to", "")) == u_id and t.get("status") != "completed")
+        team_workload_list.append({
+            "id": u_id,
+            "name": u.get("name", "User"),
+            "email": u.get("email", ""),
+            "active_tasks": active_count,
+            "avatar": u.get("name", "U")[0].upper() if u.get("name") else "U"
+        })
+    team_workload_list.sort(key=lambda m: m["active_tasks"], reverse=True)
+
+    # 6. Feature 6: Recent Activity (from task audit events)
+    recent_activity_list = []
+    sorted_tasks = sorted(
+        tasks,
+        key=lambda t: t.get("updated_at", t.get("created_at", datetime.min.replace(tzinfo=timezone.utc))),
+        reverse=True
+    )[:15]
+
+    for t in sorted_tasks:
+        p_name = project_map.get(str(t.get("project_id")), "Project")
+        status = t.get("status", "todo")
+        action = f"updated task '{t.get('title')}' to {status.upper()} in {p_name}"
+        if status == "completed":
+            action = f"completed '{t.get('title')}' in {p_name}"
+        elif status == "review":
+            action = f"submitted '{t.get('title')}' for review in {p_name}"
+
+        recent_activity_list.append({
+            "id": str(t["_id"]),
+            "title": t.get("title"),
+            "project_name": p_name,
+            "action": action,
+            "timestamp": t.get("updated_at") or t.get("created_at")
+        })
+
+    user_role = current_user.get("role", "Developer")
+
+    return {
+        "user": {
+            "id": current_user_id,
+            "name": current_user.get("name", "User"),
+            "email": current_user.get("email", ""),
+            "role": user_role
+        },
+        "kpis": {
+            "total_projects": total_projects,
+            "total_tasks": total_tasks,
+            "review": review_count,
+            "completed": completed_count,
+            "overdue": overdue_count,
+            "completion_percentage": completion_pct
+        },
+        "my_work": my_work_raw[:20],
+        "upcoming_deadlines": upcoming_deadlines_raw[:15],
+        "attention_required": {
+            "overdue_tasks": overdue_count,
+            "review_tasks": review_count,
+            "unassigned_tasks": unassigned_count,
+            "due_today_tasks": due_today_count
+        },
+        "projects_health": project_health_list,
+        "team_workload": team_workload_list[:10],
+        "recent_activity": recent_activity_list[:10]
+    }
+
+
+# =========================================================
+# GLOBAL SEARCH API (STRICTLY READ-ONLY)
+# =========================================================
+
+@router.get("/search")
+def global_search(
+    q: str = "",
+    current_user=Depends(get_current_user)
+):
+    """
+    Global search for Projects, Tasks, and Team Members.
+    CRITICAL SECURITY GUARANTEE:
+    This endpoint is 100% READ-ONLY. It NEVER modifies project.members or database documents.
+    Permission-Aware: Only searches within projects accessible to the current user.
+    """
+    query = q.strip().lower()
+    if not query:
+        return {"projects": [], "tasks": [], "members": []}
+
+    current_user_id = str(current_user["_id"])
+
+    # 1. Accessible Projects
+    accessible_projects = list(
+        db.projects.find({
+            "$or": [
+                {"owner_id": current_user_id},
+                {"members": current_user_id}
+            ]
+        })
+    )
+
+    p_map = {str(p["_id"]): p.get("name", "") for p in accessible_projects}
+    accessible_p_ids = list(p_map.keys())
+
+    # Search Projects
+    matched_projects = []
+    for p in accessible_projects:
+        p_name = p.get("name", "")
+        p_desc = p.get("description", "")
+        if query in p_name.lower() or query in p_desc.lower():
+            matched_projects.append({
+                "id": str(p["_id"]),
+                "name": p_name,
+                "description": p_desc,
+                "type": "project"
+            })
+
+    # Search Tasks (within accessible projects only)
+    matched_tasks = []
+    if accessible_p_ids:
+        tasks = list(db.tasks.find({"project_id": {"$in": accessible_p_ids}}))
+        for t in tasks:
+            t_title = t.get("title", "")
+            t_desc = t.get("description", "")
+            if query in t_title.lower() or query in t_desc.lower():
+                matched_tasks.append({
+                    "id": str(t["_id"]),
+                    "title": t_title,
+                    "description": t_desc,
+                    "status": t.get("status", "todo"),
+                    "priority": t.get("priority", "Medium"),
+                    "project_id": str(t.get("project_id")),
+                    "project_name": p_map.get(str(t.get("project_id")), "Project"),
+                    "type": "task"
+                })
+
+    # Search Members (among team members in accessible projects ONLY)
+    member_ids = set()
+    for p in accessible_projects:
+        member_ids.add(str(p.get("owner_id")))
+        for m in p.get("members", []):
+            member_ids.add(str(m))
+
+    valid_member_oids = [ObjectId(m) for m in member_ids if ObjectId.is_valid(m)]
+    member_users = list(db.users.find({"_id": {"$in": valid_member_oids}})) if valid_member_oids else []
+
+    matched_members = []
+    for u in member_users:
+        u_name = u.get("name", "")
+        u_email = u.get("email", "")
+        if query in u_name.lower() or query in u_email.lower():
+            matched_members.append({
+                "id": str(u["_id"]),
+                "name": u_name,
+                "email": u_email,
+                "role": u.get("role", "Team Member"),
+                "type": "member"
+            })
+
+    return {
+        "projects": matched_projects[:10],
+        "tasks": matched_tasks[:15],
+        "members": matched_members[:10]
+    }
+
