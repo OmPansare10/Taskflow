@@ -19,6 +19,7 @@ import Project from "./pages/Project";
 import ProjectMembers from "./pages/ProjectMembers";
 import ProjectTasks from "./pages/ProjectTasks";
 import TaskDetails from "./pages/TaskDetails";
+import Analytics from "./pages/Analytics";
 
 import ProtectedRoute from "./component/ProtectedRoute";
 import NotificationBell from "./component/NotificationBell";
@@ -88,6 +89,13 @@ function SidebarLayout({ children }) {
             className={`nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}
           >
             Dashboard
+          </Link>
+
+          <Link
+            to="/analytics"
+            className={`nav-item ${location.pathname === "/analytics" ? "active" : ""}`}
+          >
+            Analytics
           </Link>
 
           <Link
@@ -953,6 +961,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* =================================================
+            ANALYTICS & ADMIN OVERVIEW
+            ================================================= */}
+
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <SidebarLayout>
+                <Analytics />
+              </SidebarLayout>
             </ProtectedRoute>
           }
         />
