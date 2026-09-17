@@ -23,17 +23,13 @@
 .member-avatar {
   width: 60px;
   height: 60px;
-
   margin: 0 auto 15px;
-
   border-radius: 50%;
-
-  background: #f5d45b;
-
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-
   font-size: 23px;
   font-weight: 700;
 }
@@ -341,13 +337,13 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #f5d45b;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 18px;
-  color: #40371f;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
