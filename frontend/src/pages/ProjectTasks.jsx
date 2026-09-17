@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../services/api";
 
 function ProjectTasks() {
   const { id } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [project, setProject] = useState(null);
@@ -168,6 +169,13 @@ function ProjectTasks() {
 
     loadData();
   }, [id]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get("create") === "true") {
+      setShowModal(true);
+    }
+  }, [location.search]);
 
   // =============================
   // CREATE TASK
@@ -845,18 +853,14 @@ function ProjectTasks() {
         </div>
 
 
-        {isProjectOwner() && (
-
-          <button
-            className="primary-button"
-            onClick={() =>
-              setShowModal(true)
-            }
-          >
-            + Create Task
-          </button>
-
-        )}
+        <button
+          className="primary-button"
+          onClick={() =>
+            setShowModal(true)
+          }
+        >
+          + Create Task
+        </button>
 
       </div>
 

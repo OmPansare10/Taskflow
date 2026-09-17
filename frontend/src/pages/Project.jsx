@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../services/api";
 
 function Project() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const currentUserId = user?.id || user?._id;
 
@@ -261,7 +262,10 @@ function Project() {
         </div>
 
 
-        <button className="primary-button">
+        <button
+          className="primary-button"
+          onClick={() => navigate(`/project/${id}/tasks?create=true`)}
+        >
           + Create Task
         </button>
 
