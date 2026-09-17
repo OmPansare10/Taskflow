@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { API_URL } from "../services/api";
 
 function TaskDetails() {
   const { taskId } = useParams();
   const { user } = useAuth();
+  const toast = useToast();
+  const showSuccess = toast?.showSuccess || (() => {});
+  const showError = toast?.showError || (() => {});
   const navigate = useNavigate();
 
   const [task, setTask] = useState(null);
@@ -19,6 +23,8 @@ function TaskDetails() {
   const [error, setError] = useState("");
 
   const [commentText, setCommentText] = useState("");
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [subtaskLoading, setSubtaskLoading] = useState(false);
 
   const token = localStorage.getItem("access_token");
   const currentUserId = String(user?.id || user?._id || "");
@@ -263,6 +269,67 @@ function TaskDetails() {
     }
   };
 
+  const handleAddSubtask = async (e) => {
+    e.preventDefault();
+    if (!newSubtaskTitle.trim() || subtaskLoading) return;
+
+    try {
+      setSubtaskLoading(true);
+      const res = await fetch(`${API_URL}/tasks/${taskId}/subtasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: newSubtaskTitle.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to add subtask");
+      setNewSubtaskTitle("");
+      showSuccess("Subtask added successfully");
+      await fetchTask();
+    } catch (err) {
+      showError(err.message || "Failed to add subtask");
+    } finally {
+      setSubtaskLoading(false);
+    }
+  };
+
+  const handleToggleSubtask = async (subtaskId) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/tasks/${taskId}/subtasks/${subtaskId}/toggle`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to toggle subtask");
+      await fetchTask();
+    } catch (err) {
+      showError(err.message || "Failed to toggle subtask");
+    }
+  };
+
+  const handleDeleteSubtask = async (subtaskId) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/tasks/${taskId}/subtasks/${subtaskId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to delete subtask");
+      showSuccess("Subtask removed");
+      await fetchTask();
+    } catch (err) {
+      showError(err.message || "Failed to delete subtask");
+    }
+  };
+
   const formatDate = (dateValue) => {
     if (!dateValue) return "—";
 
@@ -434,6 +501,100 @@ function TaskDetails() {
                 </strong>
               </div>
             </div>
+          </div>
+
+          <div className="task-details-card glass">
+            <div className="section-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2>Subtasks & Checklist</h2>
+                <p>Break down this task into smaller actionable steps</p>
+              </div>
+              <span className="task-status-pill" style={{ background: "rgba(99, 102, 241, 0.15)", color: "var(--accent-primary, #6366f1)" }}>
+                {(task.subtasks || []).filter((s) => s.completed).length} / {(task.subtasks || []).length} Completed
+              </span>
+            </div>
+
+            {(task.subtasks || []).length > 0 && (
+              <div style={{ margin: "1rem 0 0.5rem 0", height: "6px", background: "var(--bg-tertiary)", borderRadius: "4px", overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${((task.subtasks || []).filter((s) => s.completed).length / Math.max(1, (task.subtasks || []).length)) * 100}%`,
+                    background: "linear-gradient(90deg, #6366f1, #10b981)",
+                    transition: "width 0.3s ease",
+                  }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
+              {(task.subtasks || []).length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", fontStyle: "italic" }}>
+                  No subtasks added yet. Add checklist items below to track progress.
+                </p>
+              ) : (
+                (task.subtasks || []).map((subtask) => (
+                  <div
+                    key={subtask.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "8px",
+                      background: "var(--bg-tertiary, rgba(255,255,255,0.05))",
+                      border: "1px solid var(--border-color, rgba(255,255,255,0.1))",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", flex: 1, textDecoration: subtask.completed ? "line-through" : "none", opacity: subtask.completed ? 0.6 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={subtask.completed || false}
+                        onChange={() => handleToggleSubtask(subtask.id)}
+                        style={{ width: "18px", height: "18px", accentColor: "#6366f1", cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{subtask.title}</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSubtask(subtask.id)}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "2px 6px" }}
+                      title="Delete subtask"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form onSubmit={handleAddSubtask} style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem" }}>
+              <input
+                type="text"
+                placeholder="Add a new checklist subtask..."
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem 1rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border-color, rgba(255,255,255,0.15))",
+                  background: "var(--bg-tertiary, rgba(0,0,0,0.2))",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={subtaskLoading || !newSubtaskTitle.trim()}
+                style={{ padding: "0.6rem 1.25rem", whiteSpace: "nowrap" }}
+              >
+                + Add Step
+              </button>
+            </form>
           </div>
 
           <div className="task-details-card glass">

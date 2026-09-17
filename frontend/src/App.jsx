@@ -24,6 +24,7 @@ import AdminPortfolio from "./pages/AdminPortfolio";
 
 import ProtectedRoute from "./component/ProtectedRoute";
 import NotificationBell from "./component/NotificationBell";
+import { ToastProvider } from "./context/ToastContext";
 
 import { useAuth } from "./context/AuthContext";
 import { apiRequest } from "./services/api";
@@ -830,6 +831,7 @@ function App() {
   return (
 
     <BrowserRouter>
+      <ToastProvider>
 
       <Routes>
 
@@ -1017,6 +1019,7 @@ function App() {
         />
 
       </Routes>
+      </ToastProvider>
 
     </BrowserRouter>
 

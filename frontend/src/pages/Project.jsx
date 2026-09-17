@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { API_URL } from "../services/api";
 
 function Project() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
+  const showSuccess = toast?.showSuccess || (() => {});
+  const showError = toast?.showError || (() => {});
   const currentUserId = user?.id || user?._id;
 
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -80,6 +85,64 @@ function Project() {
     setMembers(Array.isArray(data) ? data : data.members || []);
   };
 
+  const fetchActivities = async () => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const response = await fetch(`${API_URL}/projects/${id}/activity`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setActivities(data || []);
+      }
+    } catch {
+      // Activity load failure is non-blocking
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!tasks || tasks.length === 0) {
+      showError("No tasks available to export.");
+      return;
+    }
+
+    const headers = [
+      "Task ID",
+      "Title",
+      "Description",
+      "Status",
+      "Priority",
+      "Assigned To",
+      "Due Date",
+      "Created At",
+    ];
+    const rows = tasks.map((t) => [
+      `"${t._id || t.id || ""}"`,
+      `"${(t.title || "").replace(/"/g, '""')}"`,
+      `"${(t.description || "").replace(/"/g, '""')}"`,
+      `"${t.status || ""}"`,
+      `"${t.priority || ""}"`,
+      `"${t.assigned_to || "Unassigned"}"`,
+      `"${t.due_date || ""}"`,
+      `"${t.created_at || ""}"`,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `taskflow_project_${project?.name?.toLowerCase().replace(/\s+/g, "_") || id}_tasks.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showSuccess("Tasks exported to CSV!");
+  };
+
   // =====================================================
   // FETCH PROJECT
   // =====================================================
@@ -94,6 +157,7 @@ function Project() {
           fetchProject(),
           fetchTasks(),
           fetchMembers(),
+          fetchActivities(),
         ]);
       } catch (error) {
         console.error(error);
@@ -262,12 +326,22 @@ function Project() {
         </div>
 
 
-        <button
-          className="primary-button"
-          onClick={() => navigate(`/project/${id}/tasks?create=true`)}
-        >
-          + Create Task
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <button
+            className="secondary-button"
+            onClick={handleExportCSV}
+            style={{ padding: "0.6rem 1rem", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: "0.4rem" }}
+          >
+            📥 Export CSV
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={() => navigate(`/project/${id}/tasks?create=true`)}
+          >
+            + Create Task
+          </button>
+        </div>
 
       </div>
 
@@ -609,6 +683,71 @@ function Project() {
           )}
         </div>
 
+      </section>
+
+      {/* =================================================
+          PROJECT AUDIT TRAIL / ACTIVITY FEED
+      ================================================= */}
+      <section className="project-panel glass" style={{ marginTop: "2rem" }}>
+        <div className="panel-header">
+          <div>
+            <h2>Project Activity & Audit Trail</h2>
+            <p>Real-time audit log of changes and status updates</p>
+          </div>
+          <span className="task-status-pill" style={{ background: "rgba(99, 102, 241, 0.15)", color: "#6366f1" }}>
+            {activities.length} Events Logged
+          </span>
+        </div>
+
+        {activities.length === 0 ? (
+          <div className="empty-state" style={{ padding: "2rem", textAlign: "center" }}>
+            <div className="empty-icon">📜</div>
+            <p style={{ color: "var(--text-muted)" }}>No activity recorded yet for this project.</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
+            {activities.map((act) => (
+              <div
+                key={act.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "8px",
+                  background: "var(--bg-tertiary, rgba(255,255,255,0.03))",
+                  border: "1px solid var(--border-color, rgba(255,255,255,0.08))"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <span style={{ fontSize: "1.2rem" }}>⚡</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+                      {act.user_name}{" "}
+                      <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
+                        {act.action}
+                      </span>
+                    </div>
+                    {act.details && (
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                        {act.details}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                  {new Date(act.timestamp).toLocaleString("en-IN", {
+                    month: "short",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
     </div>

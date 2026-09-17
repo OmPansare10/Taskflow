@@ -474,3 +474,79 @@ def delete_project(
     return {
         "message": "Project deleted successfully"
     }
+
+
+# =========================================================
+# PROJECT ACTIVITY AUDIT TRAIL
+# =========================================================
+
+@router.get("/{project_id}/activity")
+def get_project_activity(
+    project_id: str,
+    current_user=Depends(get_current_user)
+):
+    """Generate a real-time audit log of recent project activities."""
+    if not ObjectId.is_valid(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID")
+
+    current_user_id = str(current_user["_id"])
+
+    # Check project access
+    project = db.projects.find_one({
+        "_id": ObjectId(project_id),
+        "$or": [
+            {"owner_id": current_user_id},
+            {"members": current_user_id}
+        ]
+    })
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found or access denied")
+
+    activities = []
+
+    # 1. Project creation activity
+    activities.append({
+        "id": f"proj-created-{project_id}",
+        "type": "project",
+        "title": "Project Created",
+        "description": f"Project '{project.get('name')}' was established",
+        "timestamp": project.get("created_at")
+    })
+
+    # 2. Task activities
+    tasks = list(db.tasks.find({"project_id": project_id}).sort("updated_at", -1).limit(20))
+    for t in tasks:
+        t_id = str(t["_id"])
+        created = t.get("created_at")
+        updated = t.get("updated_at")
+
+        if created:
+            activities.append({
+                "id": f"task-created-{t_id}",
+                "type": "task",
+                "title": f"Task Created: '{t.get('title')}'",
+                "description": f"Priority: {t.get('priority', 'Medium')} | Status: {t.get('status', 'todo').upper()}",
+                "timestamp": created
+            })
+
+        if updated and updated != created:
+            activities.append({
+                "id": f"task-updated-{t_id}",
+                "type": "status",
+                "title": f"Task Updated: '{t.get('title')}'",
+                "description": f"Current status is now {t.get('status', 'todo').upper()}",
+                "timestamp": updated
+            })
+
+    # Sort activities descending by timestamp
+    min_utc = datetime.min.replace(tzinfo=timezone.utc)
+    activities.sort(
+        key=lambda a: a.get("timestamp") if isinstance(a.get("timestamp"), datetime) else min_utc,
+        reverse=True
+    )
+
+    return {
+        "project_id": project_id,
+        "activities": activities[:30]
+    }

@@ -543,3 +543,118 @@ def delete_task(
     return {
         "message": "Task deleted successfully"
     }
+
+
+# =========================================================
+# SUBTASKS CHECKLIST
+# =========================================================
+
+class SubtaskCreate(BaseModel):
+    title: str
+
+
+@router.post("/{task_id}/subtasks")
+def add_subtask(
+    task_id: str,
+    subtask_data: SubtaskCreate,
+    current_user=Depends(get_current_user)
+):
+    """Add a checklist subtask item to a task."""
+    if not ObjectId.is_valid(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+
+    title = subtask_data.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Subtask title cannot be empty")
+
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    current_user_id = str(current_user["_id"])
+    check_project_access(task["project_id"], current_user_id)
+
+    new_subtask = {
+        "id": str(ObjectId()),
+        "title": title,
+        "completed": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    db.tasks.update_one(
+        {"_id": ObjectId(task_id)},
+        {"$push": {"subtasks": new_subtask}}
+    )
+
+    return {
+        "message": "Subtask added successfully",
+        "subtask": new_subtask
+    }
+
+
+@router.patch("/{task_id}/subtasks/{subtask_id}/toggle")
+def toggle_subtask(
+    task_id: str,
+    subtask_id: str,
+    current_user=Depends(get_current_user)
+):
+    """Toggle completion state of a checklist subtask item."""
+    if not ObjectId.is_valid(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    current_user_id = str(current_user["_id"])
+    check_project_access(task["project_id"], current_user_id)
+
+    subtasks = task.get("subtasks", [])
+    updated = False
+    new_state = False
+
+    for st in subtasks:
+        if str(st.get("id")) == subtask_id:
+            st["completed"] = not st.get("completed", False)
+            new_state = st["completed"]
+            updated = True
+            break
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Subtask not found")
+
+    db.tasks.update_one(
+        {"_id": ObjectId(task_id)},
+        {"$set": {"subtasks": subtasks, "updated_at": datetime.now(timezone.utc)}}
+    )
+
+    return {
+        "message": "Subtask toggled successfully",
+        "completed": new_state,
+        "subtasks": subtasks
+    }
+
+
+@router.delete("/{task_id}/subtasks/{subtask_id}")
+def delete_subtask(
+    task_id: str,
+    subtask_id: str,
+    current_user=Depends(get_current_user)
+):
+    """Delete a subtask item from a task."""
+    if not ObjectId.is_valid(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    current_user_id = str(current_user["_id"])
+    check_project_access(task["project_id"], current_user_id)
+
+    db.tasks.update_one(
+        {"_id": ObjectId(task_id)},
+        {"$pull": {"subtasks": {"id": subtask_id}}}
+    )
+
+    return {"message": "Subtask deleted successfully"}

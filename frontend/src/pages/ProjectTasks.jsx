@@ -668,6 +668,12 @@ function ProjectTasks() {
           </span>
         )}
 
+        {Array.isArray(task.subtasks) && task.subtasks.length > 0 && (
+          <span style={{ color: "#6366f1", fontWeight: 600, fontSize: "0.85rem", background: "rgba(99, 102, 241, 0.1)", padding: "2px 6px", borderRadius: "4px" }}>
+            ☑ {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+          </span>
+        )}
+
       </div>
 
 
