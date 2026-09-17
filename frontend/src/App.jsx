@@ -9,6 +9,7 @@ import {
 
 import { useEffect, useState } from "react";
 
+import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -78,6 +79,13 @@ function SidebarLayout({ children }) {
           <Link
             to="/"
             className={`nav-item ${location.pathname === "/" ? "active" : ""}`}
+          >
+            Home
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className={`nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}
           >
             Dashboard
           </Link>
@@ -927,11 +935,21 @@ function App() {
 
 
         {/* =================================================
-            DASHBOARD
+            HOME / LANDING PAGE (DEFAULT PUBLIC)
             ================================================= */}
 
         <Route
           path="/"
+          element={<Home />}
+        />
+
+
+        {/* =================================================
+            DASHBOARD
+            ================================================= */}
+
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
