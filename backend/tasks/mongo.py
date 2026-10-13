@@ -1777,6 +1777,7 @@ def get_initial_users():
             "id": "65f00990a0b1c2d3e4f50001",
             "firstName": "Alex",
             "lastName": "Mercer",
+            "name": "Alex Mercer",
             "email": "alex.mercer@company.com",
             "password": make_password("password123"),
             "role": "Project Manager",
@@ -1789,11 +1790,51 @@ def get_initial_users():
             "id": "65f00990a0b1c2d3e4f50002",
             "firstName": "Sarah",
             "lastName": "Connor",
+            "name": "Sarah Connor",
             "email": "sarah.connor@company.com",
             "password": make_password("password123"),
             "role": "DevOps Lead",
             "avatar": "SC",
             "color": "#06b6d4",
+            "createdAt": now
+        },
+        {
+            "_id": "65f00990a0b1c2d3e4f50003",
+            "id": "65f00990a0b1c2d3e4f50003",
+            "firstName": "Om",
+            "lastName": "Pansare",
+            "name": "Om Pansare",
+            "email": "om@gmail.com",
+            "password": make_password("123456"),
+            "role": "Backend Engineer",
+            "avatar": "OP",
+            "color": "#10b981",
+            "createdAt": now
+        },
+        {
+            "_id": "65f00990a0b1c2d3e4f50004",
+            "id": "65f00990a0b1c2d3e4f50004",
+            "firstName": "Akshay",
+            "lastName": "Pansare",
+            "name": "Akshay Pansare",
+            "email": "akshay@gmail.com",
+            "password": make_password("123456"),
+            "role": "Frontend Engineer",
+            "avatar": "AP",
+            "color": "#06b6d4",
+            "createdAt": now
+        },
+        {
+            "_id": "65f00990a0b1c2d3e4f50005",
+            "id": "65f00990a0b1c2d3e4f50005",
+            "firstName": "Darshan",
+            "lastName": "Pansare",
+            "name": "Darshan Pansare",
+            "email": "darshan@gmail.com",
+            "password": make_password("123456"),
+            "role": "Frontend Engineer",
+            "avatar": "DP",
+            "color": "#8b5cf6",
             "createdAt": now
         }
     ]
@@ -1869,11 +1910,11 @@ def authenticate_user(email_or_identifier, password):
             # check by ID if provided
             user = db.users.find_one(_build_id_query(query_str))
 
-        if not user and query_str in ["alex.mercer@company.com"]:
-            # Seed default users
-            for u in get_initial_users():
-                db.users.insert_one(dict(u))
-            user = db.users.find_one({"email": query_str})
+        if not user:
+            demo_user = next((u for u in get_initial_users() if u["email"] == query_str), None)
+            if demo_user:
+                db.users.update_one({"email": query_str}, {"$setOnInsert": dict(demo_user)}, upsert=True)
+                user = db.users.find_one({"email": query_str})
 
         if user and check_password(password, user.get("password", "")):
             user_clean = serialize_doc(user)
@@ -1882,7 +1923,14 @@ def authenticate_user(email_or_identifier, password):
         return None
 
     fallback = _load_fallback()
-    users = fallback.setdefault("users", get_initial_users())
+    users = fallback.setdefault("users", [])
+    existing_emails = {str(u.get("email") or "").strip().lower() for u in users}
+    for demo_u in get_initial_users():
+        if demo_u["email"] not in existing_emails:
+            users.append(dict(demo_u))
+            existing_emails.add(demo_u["email"])
+    _save_fallback(fallback)
+
     for u in users:
         if (
             str(u.get("email") or "").strip().lower() == query_str
@@ -1906,14 +1954,22 @@ def find_user_doc(identifier):
         if ObjectId.is_valid(query_str):
             filter_or.append({"_id": ObjectId(query_str)})
         user = db.users.find_one({"$or": filter_or})
-        if not user and query_str.lower() in ["alex.mercer@company.com"]:
-            for u in get_initial_users():
-                db.users.insert_one(dict(u))
-            user = db.users.find_one({"$or": filter_or})
+        if not user:
+            demo_user = next((u for u in get_initial_users() if u["email"] == query_str.lower()), None)
+            if demo_user:
+                db.users.update_one({"email": query_str.lower()}, {"$setOnInsert": dict(demo_user)}, upsert=True)
+                user = db.users.find_one({"$or": filter_or})
         return user
 
     fallback = _load_fallback()
-    users = fallback.setdefault("users", get_initial_users())
+    users = fallback.setdefault("users", [])
+    existing_emails = {str(u.get("email") or "").strip().lower() for u in users}
+    for demo_u in get_initial_users():
+        if demo_u["email"] not in existing_emails:
+            users.append(dict(demo_u))
+            existing_emails.add(demo_u["email"])
+    _save_fallback(fallback)
+
     for u in users:
         if (
             str(u.get("id") or "") == query_str

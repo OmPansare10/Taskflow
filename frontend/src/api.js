@@ -1,4 +1,13 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://taskflow-1-y4rn.onrender.com/api').replace(/\/$/, '');
+const getApiBase = () => {
+  const envBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (!envBase) {
+    return 'https://taskflow-1-y4rn.onrender.com/api';
+  }
+  const clean = envBase.replace(/\/$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+};
+
+const API_BASE = getApiBase();
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
@@ -24,12 +33,22 @@ async function request(endpoint, options = {}) {
   try {
     const res = await fetch(url, config);
     if (!res.ok) {
-      let errMessage = `Error ${res.status}: ${res.statusText}`;
+      let errMessage = `Error ${res.status}${res.statusText ? `: ${res.statusText}` : ''}`;
       try {
         const errorJson = await res.json();
-        if (errorJson.error) errMessage = errorJson.error;
+        if (errorJson.error) {
+          errMessage = errorJson.error;
+        } else if (errorJson.detail) {
+          errMessage = errorJson.detail;
+        } else if (errorJson.message) {
+          errMessage = errorJson.message;
+        }
       } catch (e) {
-        // fallback to statusText
+        if (res.status === 404) {
+          errMessage = `Error 404: Endpoint not found at ${url}. Please verify backend configuration.`;
+        } else if (res.status >= 500) {
+          errMessage = `Error ${res.status}: Backend server error. The server may be waking up or experiencing issues.`;
+        }
       }
       throw new Error(errMessage);
     }
@@ -136,7 +155,7 @@ export const api = {
       }
     } catch (e) {}
 
-    const res = await fetch(`/api/projects/${projectId}/export-activity/${qs}`, {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/export-activity/${qs}`, {
       headers: authHeaders
     });
     if (!res.ok) {
