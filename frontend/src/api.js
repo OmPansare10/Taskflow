@@ -1,4 +1,4 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://taskflow-1-y4rn.onrender.com/api').replace(/\/$/, '');
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
