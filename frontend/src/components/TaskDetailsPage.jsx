@@ -48,44 +48,103 @@ export default function TaskDetailsPage({
   const [submittingComment, setSubmittingComment] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [userSelectedAssignee, setUserSelectedAssignee] = useState(false);
 
-  // Consolidated assignees list from personal team, project team members, current user, and task assignee
-  const availableAssignees = React.useMemo(() => {
-    const list = [];
-    const seen = new Set();
+  const [assigneesData, setAssigneesData] = useState({
+    source: 'project',
+    projectMemberCount: 0,
+    eligibleAssignees: [],
+    recommendedAssignee: null,
+    loading: true,
+    error: ''
+  });
 
-    const addMember = (m) => {
-      if (!m) return;
-      const name = m.name || (m.firstName ? `${m.firstName} ${m.lastName}`.trim() : '');
-      const email = (m.email || '').toLowerCase().trim();
-      const key = email || name;
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      list.push({
-        id: m.id || m._id || m.userId || key,
-        name: name,
-        email: email,
-        role: m.role || 'Team Member',
-        avatar: m.avatar || (name ? name.substring(0, 2).toUpperCase() : 'TM'),
-        color: m.color || '#6366f1'
+  // Fetch eligible assignees according to project membership & team rules
+  useEffect(() => {
+    let isMounted = true;
+    if (!projectId) {
+      setAssigneesData(prev => ({ ...prev, loading: false }));
+      return;
+    }
+
+    setAssigneesData(prev => ({ ...prev, loading: true, error: '' }));
+    api.getProjectEligibleAssignees(projectId, {
+      userEmail: currentUser?.email,
+      userId: currentUser?.id || currentUser?._id
+    })
+      .then(res => {
+        if (!isMounted) return;
+        const eligible = res?.eligibleAssignees || [];
+        const recommended = res?.recommendedAssignee || null;
+        setAssigneesData({
+          source: res?.source || (eligible.length > 0 ? 'project' : 'none'),
+          projectMemberCount: res?.projectMemberCount || 0,
+          eligibleAssignees: eligible,
+          recommendedAssignee: recommended,
+          loading: false,
+          error: ''
+        });
+
+        // Automatically pre-select recommended assignee for new tasks if user hasn't explicitly changed it
+        // BUT ONLY IF project has members! If project has 0 members, keep Unassigned ('')
+        const pCount = res?.projectMemberCount || 0;
+        if (!taskToEdit && !userSelectedAssignee) {
+          if (pCount > 0 && recommended?.name) {
+            setFormData(prev => ({
+              ...prev,
+              assigneeName: recommended.name
+            }));
+          } else {
+            setFormData(prev => ({
+              ...prev,
+              assigneeName: ''
+            }));
+          }
+        }
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error('Failed to load eligible assignees:', err);
+        setAssigneesData(prev => ({
+          ...prev,
+          loading: false,
+          error: err.message || 'Failed to load assignees'
+        }));
       });
+
+    return () => {
+      isMounted = false;
     };
+  }, [projectId, currentUser?.email, currentUser?.id, taskToEdit, project?.teamMembers]);
 
-    if (Array.isArray(teamMembers)) {
-      teamMembers.forEach(addMember);
-    }
-    if (project && Array.isArray(project.teamMembers)) {
-      project.teamMembers.forEach(addMember);
-    }
-    if (currentUser) {
-      addMember(currentUser);
-    }
-    if (taskToEdit && taskToEdit.assignee) {
-      addMember(taskToEdit.assignee);
+  // Only members added into this project are eligible assignees.
+  // If no one is added to the project, no assignees appear (only Unassigned).
+  // Fallback preserves existing assignee for existing tasks.
+  const availableAssignees = React.useMemo(() => {
+    if (!assigneesData.loading && Array.isArray(assigneesData.eligibleAssignees)) {
+      const list = [...assigneesData.eligibleAssignees];
+      if (taskToEdit?.assignee?.name) {
+        const found = list.some(m => m.name === taskToEdit.assignee.name || (m.email && m.email === taskToEdit.assignee.email));
+        if (!found) {
+          list.unshift(taskToEdit.assignee);
+        }
+      }
+      return list;
     }
 
-    return list;
-  }, [teamMembers, project, currentUser, taskToEdit]);
+    if (project && Array.isArray(project.teamMembers) && project.teamMembers.length > 0) {
+      const pOwnerId = String(project.owner_id || project.createdBy || '').trim();
+      const pMgrEmail = (project.managerEmail || '').toLowerCase().trim();
+      const pMembers = project.teamMembers.filter(m => {
+        const mRole = (m.role || '').toLowerCase();
+        const mId = String(m.id || m._id || '').trim();
+        const mEmail = (m.email || '').toLowerCase().trim();
+        return mRole !== 'project manager' && !(pOwnerId && mId && mId === pOwnerId) && !(pMgrEmail && mEmail && mEmail === pMgrEmail);
+      });
+      return pMembers;
+    }
+    return [];
+  }, [assigneesData, taskToEdit, project]);
 
   useEffect(() => {
     if (taskToEdit) {
@@ -108,7 +167,7 @@ export default function TaskDetailsPage({
         description: '',
         status: initialStatus,
         priority: 'medium',
-        assigneeName: availableAssignees[0]?.name || '',
+        assigneeName: (assigneesData.projectMemberCount > 0 && assigneesData.recommendedAssignee?.name) ? assigneesData.recommendedAssignee.name : '',
         dueDate: '',
         estimatedHours: '8',
         spentHours: '0',
@@ -119,15 +178,20 @@ export default function TaskDetailsPage({
     }
     setActiveTab('details');
     setError('');
-  }, [taskToEdit, initialStatus, availableAssignees]);
+  }, [taskToEdit, initialStatus]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'assigneeName') {
+      setUserSelectedAssignee(true);
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+
     if (!formData.title.trim() && isProjectManager) {
       setError('Task title is required');
       return;
@@ -136,12 +200,10 @@ export default function TaskDetailsPage({
     setSaving(true);
     setError('');
     try {
-      const selectedMember = availableAssignees.find(m => m.name === formData.assigneeName) || taskToEdit?.assignee || {
-        name: formData.assigneeName || 'Unassigned',
-        role: 'Team Member',
-        avatar: (formData.assigneeName || 'UN').substring(0, 2).toUpperCase(),
-        color: '#6366f1'
-      };
+      const isUnassigned = !formData.assigneeName || formData.assigneeName === 'Unassigned';
+      const selectedMember = isUnassigned
+        ? null
+        : (availableAssignees.find(m => m.name === formData.assigneeName) || taskToEdit?.assignee || null);
 
       const currentUserName = currentUser
         ? (currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName}` : currentUser.name)
@@ -156,11 +218,15 @@ export default function TaskDetailsPage({
           status: formData.status,
           priority: formData.priority,
           assignee: selectedMember,
+          assigneeName: selectedMember ? selectedMember.name : 'Unassigned',
+          assigned_to: selectedMember ? (selectedMember.id || selectedMember._id) : null,
           dueDate: formData.dueDate,
           estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : 0,
           spentHours: formData.spentHours ? parseFloat(formData.spentHours) : 0,
           labels: formData.labels ? formData.labels.split(',').map(l => l.trim()).filter(Boolean) : [],
-          updatedBy: currentUserName
+          updatedBy: currentUserName,
+          userEmail: currentUser?.email,
+          created_by: currentUser?.id || currentUser?._id
         };
       } else {
         // Team member updating stage
@@ -461,24 +527,130 @@ export default function TaskDetailsPage({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Assignee</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Assignee</label>
+                    {assigneesData.projectMemberCount > 0 && formData.assigneeName && formData.assigneeName !== 'Unassigned' ? (
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: '#059669',
+                        background: '#ecfdf5',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid #a7f3d0'
+                      }}>
+                        ✓ Fair Project Assignment
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        background: '#f1f5f9',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid #cbd5e1'
+                      }}>
+                        Unassigned
+                      </span>
+                    )}
+                  </div>
+
+                  {assigneesData.loading ? (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0.45rem 0' }}>
+                      Checking eligible team members...
+                    </div>
+                  ) : null}
+
                   {isProjectManager ? (
-                    <select
-                      name="assigneeName"
-                      className="form-select"
-                      value={formData.assigneeName}
-                      onChange={handleChange}
-                    >
-                      <option value="">Unassigned</option>
-                      {availableAssignees.map(m => {
-                        const isYou = currentUser && ((m.email && m.email === currentUser.email) || m.name === (currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName}` : currentUser.name));
+                    <>
+                      <select
+                        name="assigneeName"
+                        className="form-select"
+                        value={formData.assigneeName}
+                        onChange={handleChange}
+                      >
+                        <option value="">Unassigned</option>
+                        {availableAssignees.length > 0 && (
+                          <optgroup label="Project Members">
+                            {availableAssignees.map(m => {
+                              const isYou = currentUser && ((m.email && m.email === currentUser.email) || m.name === (currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName}` : currentUser.name));
+                              const countStr = m.activeTaskCount !== undefined ? ` • ${m.activeTaskCount} active task${m.activeTaskCount === 1 ? '' : 's'}` : '';
+                              const recStr = (assigneesData.projectMemberCount > 0 && m.isRecommended) ? ' ★ Recommended' : '';
+                              return (
+                                <option key={m.id || m._id || m.email || m.name} value={m.name}>
+                                  {m.name} {isYou ? '(You)' : ''} ({m.role || 'Team Member'}){countStr}{recStr}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                      </select>
+
+                      {availableAssignees.length === 0 && !assigneesData.loading && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                          No members have been added to this project yet.
+                        </div>
+                      )}
+
+                      {/* Display Selected Assignee Details preview only when a member is assigned */}
+                      {(() => {
+                        if (!formData.assigneeName || formData.assigneeName === 'Unassigned') return null;
+                        const selectedObj = availableAssignees.find(m => m.name === formData.assigneeName);
+                        if (!selectedObj) return null;
                         return (
-                          <option key={m.id || m.email || m.name} value={m.name}>
-                            {m.name} {isYou ? '(You)' : ''} ({m.role || 'Team Member'})
-                          </option>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.65rem',
+                            marginTop: '0.55rem',
+                            padding: '0.5rem 0.85rem',
+                            borderRadius: '8px',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-subtle)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                background: selectedObj.color || '#6366f1',
+                                color: '#ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.75rem'
+                              }}>
+                                {selectedObj.avatar || (selectedObj.name ? selectedObj.name.substring(0, 2).toUpperCase() : 'TM')}
+                              </div>
+                              <div>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                                  {selectedObj.name}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.45rem' }}>
+                                  ({selectedObj.role || 'Team Member'})
+                                </span>
+                              </div>
+                            </div>
+                            {selectedObj.isRecommended && (
+                              <span style={{
+                                background: '#ecfdf5',
+                                color: '#059669',
+                                border: '1px solid #a7f3d0',
+                                borderRadius: '4px',
+                                padding: '0.15rem 0.5rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }}>
+                                ★ Fewest Active Tasks
+                              </span>
+                            )}
+                          </div>
                         );
-                      })}
-                    </select>
+                      })()}
+                    </>
                   ) : (
                     <div style={{
                       display: 'flex',

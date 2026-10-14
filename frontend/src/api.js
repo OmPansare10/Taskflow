@@ -1,16 +1,51 @@
 const getApiBase = () => {
   const envBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
-  if (!envBase) {
-    return 'https://taskflow-1-y4rn.onrender.com/api';
+  if (envBase) {
+    const clean = envBase.replace(/\/$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
-  const clean = envBase.replace(/\/$/, '');
-  return clean.endsWith('/api') ? clean : `${clean}/api`;
+  // Auto-detect local development (localhost / 127.0.0.1) so requests don't hit remote sleeping servers
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '') {
+      return '/api';
+    }
+  }
+  return 'https://taskflow-1-y4rn.onrender.com/api';
 };
 
 const API_BASE = getApiBase();
 
+// Request deduplication & short-term cache for lightning-fast loads
+const inFlightRequests = new Map();
+const getCache = new Map();
+const CACHE_TTL_MS = 2500; // 2.5s cache for identical GETs
+
+export const invalidateApiCache = () => {
+  getCache.clear();
+};
+
 async function request(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const url = `${API_BASE}${endpoint}`;
+
+  // Invalidate cache on mutations
+  if (method !== 'GET') {
+    getCache.clear();
+  }
+
+  // Deduplication & cache for GET requests
+  const cacheKey = `${method}:${url}`;
+  if (method === 'GET') {
+    const cached = getCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey);
+    }
+  }
+
   const authHeaders = {};
   try {
     const raw = localStorage.getItem('taskflow_user');
@@ -30,33 +65,47 @@ async function request(endpoint, options = {}) {
     ...options,
   };
 
-  try {
-    const res = await fetch(url, config);
-    if (!res.ok) {
-      let errMessage = `Error ${res.status}${res.statusText ? `: ${res.statusText}` : ''}`;
-      try {
-        const errorJson = await res.json();
-        if (errorJson.error) {
-          errMessage = errorJson.error;
-        } else if (errorJson.detail) {
-          errMessage = errorJson.detail;
-        } else if (errorJson.message) {
-          errMessage = errorJson.message;
+  const reqPromise = (async () => {
+    try {
+      const res = await fetch(url, config);
+      if (!res.ok) {
+        let errMessage = `Error ${res.status}${res.statusText ? `: ${res.statusText}` : ''}`;
+        try {
+          const errorJson = await res.json();
+          if (errorJson.error) {
+            errMessage = errorJson.error;
+          } else if (errorJson.detail) {
+            errMessage = errorJson.detail;
+          } else if (errorJson.message) {
+            errMessage = errorJson.message;
+          }
+        } catch (e) {
+          if (res.status === 404) {
+            errMessage = `Error 404: Endpoint not found at ${url}. Please verify backend configuration.`;
+          } else if (res.status >= 500) {
+            errMessage = `Error ${res.status}: Backend server error. The server may be waking up or experiencing issues.`;
+          }
         }
-      } catch (e) {
-        if (res.status === 404) {
-          errMessage = `Error 404: Endpoint not found at ${url}. Please verify backend configuration.`;
-        } else if (res.status >= 500) {
-          errMessage = `Error ${res.status}: Backend server error. The server may be waking up or experiencing issues.`;
-        }
+        throw new Error(errMessage);
       }
-      throw new Error(errMessage);
+      const data = await res.json();
+      if (method === 'GET') {
+        getCache.set(cacheKey, { timestamp: Date.now(), data });
+      }
+      return data;
+    } catch (error) {
+      console.error(`API Request Failed [${endpoint}]:`, error);
+      throw error;
+    } finally {
+      inFlightRequests.delete(cacheKey);
     }
-    return await res.json();
-  } catch (error) {
-    console.error(`API Request Failed [${endpoint}]:`, error);
-    throw error;
+  })();
+
+  if (method === 'GET') {
+    inFlightRequests.set(cacheKey, reqPromise);
   }
+
+  return reqPromise;
 }
 
 export const api = {
@@ -89,6 +138,16 @@ export const api = {
     return request(`/projects/${id}/${qs}`, { method: 'DELETE' });
   },
   leaveProject: (id, userData = {}) => request(`/projects/${id}/leave/`, { method: 'POST', body: JSON.stringify(userData) }),
+  getProjectEligibleAssignees: (id, params = {}) => {
+    const q = new URLSearchParams();
+    const userEmail = params.userEmail || params.user_email;
+    const userId = params.userId || params.user_id;
+    if (userEmail) q.append('userEmail', userEmail);
+    if (userId) q.append('userId', userId);
+    if (params.strategy) q.append('strategy', params.strategy);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(`/projects/${id}/eligible-assignees/${qs}`);
+  },
 
   // Tasks
   getTasks: (params = {}) => {

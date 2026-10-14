@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Users, UserPlus, X, Search, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { api } from '../api';
+import { api, invalidateApiCache } from '../api';
 
 export default function ProjectMembersSection({
   project,
@@ -13,21 +13,75 @@ export default function ProjectMembersSection({
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'success' | 'error', text: '' }
+  const [fetchedTeamMembers, setFetchedTeamMembers] = useState([]);
+
+  // Load team members from backend to ensure all eligible members from the Team section are available
+  useEffect(() => {
+    let isMounted = true;
+    const ownerKey = currentUser?.email || currentUser?.id || currentUser?._id;
+    api.getTeam(ownerKey)
+      .then(members => {
+        if (isMounted && Array.isArray(members) && members.length > 0) {
+          setFetchedTeamMembers(members);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch team members for project section:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.email, currentUser?.id, project?.id, project?._id]);
+
+  // Combine props teamMembers and fetchedTeamMembers without duplicates
+  const allTeamMembers = useMemo(() => {
+    const combined = [...teamMembers];
+    const seen = new Set(combined.map(m => String(m.id || m._id || m.email || '').toLowerCase()));
+    for (const fm of fetchedTeamMembers) {
+      const key = String(fm.id || fm._id || fm.email || '').toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.push(fm);
+      }
+    }
+    return combined;
+  }, [teamMembers, fetchedTeamMembers]);
 
   if (!project) return null;
 
-  const currentMembers = project.teamMembers || [];
+  // Helper to identify if a member object corresponds to the project manager/creator
+  const isManagerMember = (m) => {
+    if (!m) return false;
+    const mId = String(m.id || m._id || m.userId || '').trim();
+    const mEmail = (m.email || '').toLowerCase().trim();
+    const mName = (m.name || '').toLowerCase().trim();
 
-  // Filter available team members not yet in this project
-  const availableTeamMembers = teamMembers.filter(tm => {
-    const tmEmail = (tm.email || '').toLowerCase();
-    const tmName = (tm.name || '').toLowerCase();
-    const tmId = tm.id || tm._id;
+    const pOwnerId = String(project.owner_id || project.createdBy || '').trim();
+    const pMgrEmail = (project.managerEmail || '').toLowerCase().trim();
+    const pMgrName = (project.manager || '').toLowerCase().trim();
 
-    return !currentMembers.some(m => {
-      const mEmail = (m.email || '').toLowerCase();
-      const mName = (m.name || '').toLowerCase();
-      const mId = m.id || m._id;
+    return (pOwnerId && mId && mId === pOwnerId) ||
+           (pMgrEmail && mEmail && mEmail === pMgrEmail) ||
+           (pMgrName && mName && mName === pMgrName) ||
+           (m.role === 'Project Manager');
+  };
+
+  const currentMembers = Array.isArray(project.teamMembers) ? project.teamMembers : [];
+  // Assigned project team members (excluding the project manager from regular member slots)
+  const assignedProjectMembers = currentMembers.filter(m => !isManagerMember(m));
+
+  // Available team members not yet added as assigned members to this project
+  const availableTeamMembers = allTeamMembers.filter(tm => {
+    if (isManagerMember(tm)) return false;
+    const tmEmail = (tm.email || '').toLowerCase().trim();
+    const tmName = (tm.name || '').toLowerCase().trim();
+    const tmId = String(tm.id || tm._id || '').trim();
+
+    return !assignedProjectMembers.some(m => {
+      const mEmail = (m.email || '').toLowerCase().trim();
+      const mName = (m.name || '').toLowerCase().trim();
+      const mId = String(m.id || m._id || '').trim();
       return (tmEmail && mEmail === tmEmail) ||
              (tmId && mId === tmId) ||
              (tmName && mName === tmName);
@@ -42,7 +96,7 @@ export default function ProjectMembersSection({
       return;
     }
 
-    const memberToAdd = teamMembers.find(m => (m.id || m._id || m.email) === selectedMemberId);
+    const memberToAdd = allTeamMembers.find(m => String(m.id || m._id || m.email) === selectedMemberId);
     if (!memberToAdd) return;
 
     await addMemberDocToProject(memberToAdd);
@@ -70,8 +124,8 @@ export default function ProjectMembersSection({
       await addMemberDocToProject(foundOrAdded);
       setSearchEmailQuery('');
     } catch (err) {
-      // If already in team, look up in teamMembers
-      const existingInTeam = teamMembers.find(m => 
+      // If already in team, look up in allTeamMembers
+      const existingInTeam = allTeamMembers.find(m => 
         (m.email || '').toLowerCase() === query.toLowerCase() ||
         (m.name || '').toLowerCase().includes(query.toLowerCase())
       );
@@ -93,12 +147,12 @@ export default function ProjectMembersSection({
   const addMemberDocToProject = async (member) => {
     const memberName = member.name || member.email?.split('@')[0] || 'Team Member';
     const memberEmail = member.email || '';
-    const memberId = member.id || member._id || member.userId || `m-${Date.now()}`;
+    const memberId = String(member.id || member._id || member.userId || `m-${Date.now()}`);
 
     // Verify not already in project
-    const alreadyExists = currentMembers.some(m => 
+    const alreadyExists = assignedProjectMembers.some(m => 
       (m.email && m.email.toLowerCase() === memberEmail.toLowerCase()) ||
-      (m.id && m.id === memberId) ||
+      (m.id && String(m.id) === memberId) ||
       (m.name && m.name.toLowerCase() === memberName.toLowerCase())
     );
 
@@ -109,6 +163,7 @@ export default function ProjectMembersSection({
 
     const memberDoc = {
       id: memberId,
+      _id: memberId,
       name: memberName,
       email: memberEmail,
       role: member.role || 'Developer',
@@ -116,12 +171,17 @@ export default function ProjectMembersSection({
       color: member.color || '#06b6d4'
     };
 
-    const updatedMembers = [...currentMembers, memberDoc];
+    // Ensure manager is preserved in project.teamMembers
+    const existingManager = currentMembers.find(isManagerMember);
+    const updatedMembers = existingManager
+      ? [existingManager, ...assignedProjectMembers, memberDoc]
+      : [...assignedProjectMembers, memberDoc];
 
     const projId = project.id || project._id;
     try {
       setLoading(true);
       const updatedProj = await api.updateProject(projId, { teamMembers: updatedMembers });
+      invalidateApiCache();
       if (onUpdateProject) {
         onUpdateProject(updatedProj || { ...project, teamMembers: updatedMembers });
       }
@@ -141,10 +201,10 @@ export default function ProjectMembersSection({
       return;
     }
 
-    const memberId = member.id || member._id;
+    const memberId = String(member.id || member._id || '');
     const memberEmail = (member.email || '').toLowerCase();
     const updatedMembers = currentMembers.filter(m => {
-      const mId = m.id || m._id;
+      const mId = String(m.id || m._id || '');
       const mEmail = (m.email || '').toLowerCase();
       if (memberId && mId === memberId) return false;
       if (memberEmail && mEmail === memberEmail) return false;
@@ -155,6 +215,7 @@ export default function ProjectMembersSection({
     try {
       setLoading(true);
       const updatedProj = await api.updateProject(projId, { teamMembers: updatedMembers });
+      invalidateApiCache();
       if (onUpdateProject) {
         onUpdateProject(updatedProj || { ...project, teamMembers: updatedMembers });
       }
@@ -187,7 +248,7 @@ export default function ProjectMembersSection({
         flexWrap: 'wrap',
         gap: '0.85rem'
       }}>
-        {/* Left: Title & Count */}
+        {/* Left: Title & Member Count Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div style={{
             width: '32px',
@@ -211,16 +272,19 @@ export default function ProjectMembersSection({
               }}>
                 Project Team Members
               </h3>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                padding: '0.1rem 0.5rem',
-                borderRadius: '999px',
-                background: '#eef2ff',
-                color: '#4338ca',
-                border: '1px solid #c7d2fe'
-              }}>
-                {currentMembers.length}
+              <span
+                id="project-member-count-badge"
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  padding: '0.1rem 0.5rem',
+                  borderRadius: '999px',
+                  background: '#eef2ff',
+                  color: '#4338ca',
+                  border: '1px solid #c7d2fe'
+                }}
+              >
+                {assignedProjectMembers.length}
               </span>
             </div>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -232,9 +296,10 @@ export default function ProjectMembersSection({
         {/* Right: Add Member Control Form */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           {!isSearchMode ? (
-            /* Dropdown mode */
+            /* Dropdown mode: Loads eligible members from Team section */
             <form onSubmit={handleAddFromDropdown} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <select
+                id="project-member-select-dropdown"
                 value={selectedMemberId}
                 onChange={(e) => setSelectedMemberId(e.target.value)}
                 style={{
@@ -245,12 +310,18 @@ export default function ProjectMembersSection({
                   padding: '0.45rem 0.85rem',
                   fontSize: '0.85rem',
                   outline: 'none',
-                  minWidth: '180px',
+                  minWidth: '200px',
                   cursor: 'pointer'
                 }}
               >
                 <option value="" style={{ background: '#ffffff', color: '#64748b' }}>
-                  {availableTeamMembers.length === 0 ? 'No more team members' : 'Select team member...'}
+                  {availableTeamMembers.length === 0
+                    ? (allTeamMembers.length === 0
+                        ? 'No team members available. Please add a member to your Team first.'
+                        : 'All team members already in project')
+                    : (assignedProjectMembers.length === 0
+                        ? 'Select team member to assign...'
+                        : 'Add more team members...')}
                 </option>
                 {availableTeamMembers.map(m => (
                   <option key={m.id || m._id || m.email} value={m.id || m._id || m.email} style={{ background: '#ffffff', color: '#0f172a' }}>
@@ -261,6 +332,7 @@ export default function ProjectMembersSection({
 
               <button
                 type="submit"
+                id="add-member-btn"
                 disabled={!selectedMemberId || loading}
                 className="btn btn-primary"
                 style={{
@@ -271,12 +343,13 @@ export default function ProjectMembersSection({
                   cursor: !selectedMemberId || loading ? 'not-allowed' : 'pointer'
                 }}
               >
-                <UserPlus size={14} />
+                {loading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
                 <span>Add Member</span>
               </button>
 
               <button
                 type="button"
+                id="toggle-find-email-btn"
                 onClick={() => { setIsSearchMode(true); setStatusMessage(null); }}
                 style={{
                   background: 'transparent',
@@ -287,7 +360,7 @@ export default function ProjectMembersSection({
                   textDecoration: 'underline',
                   padding: '0 0.35rem'
                 }}
-                title="Search any registered member by email"
+                title="Search any registered member by email or employee ID"
               >
                 Find by email
               </button>
@@ -299,6 +372,7 @@ export default function ProjectMembersSection({
                 <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#4f46e5' }} />
                 <input
                   type="text"
+                  id="search-email-member-input"
                   placeholder="Email or Employee ID..."
                   value={searchEmailQuery}
                   onChange={(e) => setSearchEmailQuery(e.target.value)}
@@ -317,6 +391,7 @@ export default function ProjectMembersSection({
 
               <button
                 type="submit"
+                id="search-add-member-btn"
                 disabled={!searchEmailQuery.trim() || loading}
                 className="btn btn-primary"
                 style={{
@@ -368,17 +443,22 @@ export default function ProjectMembersSection({
       )}
 
       {/* Assigned Members Grid / Chips */}
-      {currentMembers.length === 0 ? (
-        <div style={{
-          padding: '1.25rem',
-          textAlign: 'center',
-          borderRadius: '8px',
-          background: '#f8fafc',
-          border: '1px dashed var(--border-subtle)',
-          color: 'var(--text-muted)',
-          fontSize: '0.85rem'
-        }}>
-          No team members assigned to this project yet. Use the dropdown above to add members.
+      {assignedProjectMembers.length === 0 ? (
+        <div
+          id="project-members-empty-state"
+          style={{
+            padding: '1.25rem',
+            textAlign: 'center',
+            borderRadius: '8px',
+            background: '#f8fafc',
+            border: '1px dashed var(--border-subtle)',
+            color: 'var(--text-muted)',
+            fontSize: '0.85rem'
+          }}
+        >
+          {allTeamMembers.length === 0
+            ? "No team members available. Please add a member to your Team first."
+            : "No team members assigned to this project yet. Use the dropdown above to add members."}
         </div>
       ) : (
         <div style={{
@@ -387,13 +467,13 @@ export default function ProjectMembersSection({
           gap: '0.65rem',
           alignItems: 'center'
         }}>
-          {currentMembers.map((member) => {
+          {assignedProjectMembers.map((member) => {
             const initial = (member.name || member.email || 'M').charAt(0).toUpperCase();
-            const isManager = project.manager && member.name && project.manager.toLowerCase() === member.name.toLowerCase();
 
             return (
               <div
                 key={member.id || member._id || member.email}
+                className="project-member-chip"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -435,11 +515,11 @@ export default function ProjectMembersSection({
                   </span>
                   <span style={{
                     fontSize: '0.7rem',
-                    color: isManager ? '#4f46e5' : 'var(--text-muted)',
+                    color: 'var(--text-muted)',
                     lineHeight: 1.2,
-                    fontWeight: isManager ? 600 : 400
+                    fontWeight: 400
                   }}>
-                    {isManager ? 'Project Manager' : (member.role || 'Member')}
+                    {member.role || 'Member'}
                   </span>
                 </div>
 

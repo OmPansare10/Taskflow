@@ -33,6 +33,42 @@ export default function TaskModal({
   const [submittingComment, setSubmittingComment] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [eligibleAssignees, setEligibleAssignees] = useState([]);
+  const [assigneeSource, setAssigneeSource] = useState('project');
+  const [projectMemberCount, setProjectMemberCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isOpen && projectId) {
+      api.getProjectEligibleAssignees(projectId, {
+        userEmail: currentUser?.email,
+        userId: currentUser?.id || currentUser?._id
+      }).then(res => {
+        if (!isMounted) return;
+        const list = res?.eligibleAssignees || [];
+        const pCount = res?.projectMemberCount || 0;
+        setProjectMemberCount(pCount);
+        setEligibleAssignees(list);
+        setAssigneeSource(res?.source || 'project');
+        if (!taskToEdit) {
+          if (pCount > 0 && res?.recommendedAssignee?.name) {
+            setFormData(prev => ({
+              ...prev,
+              assigneeName: res.recommendedAssignee.name
+            }));
+          } else {
+            setFormData(prev => ({
+              ...prev,
+              assigneeName: ''
+            }));
+          }
+        }
+      }).catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [isOpen, projectId, currentUser?.email, currentUser?.id, taskToEdit]);
+
+  const activeAssignees = eligibleAssignees;
 
   useEffect(() => {
     if (taskToEdit) {
@@ -55,7 +91,7 @@ export default function TaskModal({
         description: '',
         status: initialStatus,
         priority: 'medium',
-        assigneeName: teamMembers[0]?.name || '',
+        assigneeName: projectMemberCount > 0 ? (activeAssignees[0]?.name || '') : '',
         dueDate: '',
         estimatedHours: '8',
         spentHours: '0',
@@ -66,7 +102,7 @@ export default function TaskModal({
     }
     setActiveTab('details');
     setError('');
-  }, [taskToEdit, initialStatus, isOpen, teamMembers]);
+  }, [taskToEdit, initialStatus, isOpen, activeAssignees, projectMemberCount]);
 
   if (!isOpen) return null;
 
@@ -77,6 +113,8 @@ export default function TaskModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+
     if (!formData.title.trim()) {
       setError('Task title is required');
       return;
@@ -85,12 +123,10 @@ export default function TaskModal({
     setSaving(true);
     setError('');
     try {
-      const selectedMember = teamMembers.find(m => m.name === formData.assigneeName) || {
-        name: formData.assigneeName || 'Unassigned',
-        role: 'Team Member',
-        avatar: (formData.assigneeName || 'UN').substring(0, 2).toUpperCase(),
-        color: '#6366f1'
-      };
+      const isUnassigned = !formData.assigneeName || formData.assigneeName === 'Unassigned';
+      const selectedMember = isUnassigned
+        ? null
+        : (activeAssignees.find(m => m.name === formData.assigneeName) || null);
 
       const payload = {
         projectId: projectId,
@@ -99,11 +135,13 @@ export default function TaskModal({
         status: formData.status,
         priority: formData.priority,
         assignee: selectedMember,
+        assigneeName: selectedMember ? selectedMember.name : 'Unassigned',
+        assigned_to: selectedMember ? (selectedMember.id || selectedMember._id) : null,
         dueDate: formData.dueDate,
         estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : 0,
         spentHours: formData.spentHours ? parseFloat(formData.spentHours) : 0,
         labels: formData.labels ? formData.labels.split(',').map(l => l.trim()).filter(Boolean) : [],
-        updatedBy: activeRole === 'manager' ? 'Project Manager' : selectedMember.name
+        updatedBy: activeRole === 'manager' ? 'Project Manager' : (selectedMember?.name || 'Team Member')
       };
 
       await onSave(payload, taskToEdit?.id);
@@ -275,12 +313,21 @@ export default function TaskModal({
                 <label>Assignee</label>
                 <select name="assigneeName" className="form-select" value={formData.assigneeName} onChange={handleChange} disabled={!isProjectManager}>
                   <option value="">Unassigned</option>
-                  {teamMembers.map(m => (
-                    <option key={m.id || m.name} value={m.name}>
-                      {m.name} ({m.role || 'Team Member'})
-                    </option>
-                  ))}
+                  {activeAssignees.length > 0 && (
+                    <optgroup label="Project Members">
+                      {activeAssignees.map(m => (
+                        <option key={m.id || m.name} value={m.name}>
+                          {m.name} ({m.role || 'Team Member'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
+                {activeAssignees.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+                    No members have been added to this project yet.
+                  </div>
+                )}
               </div>
 
               <div className="form-group">

@@ -9,71 +9,53 @@ django.setup()
 
 from tasks import mongo
 
-def sync_data():
+EXPECTED_COLLECTIONS = {
+    "users": ["_id", "first_name", "last_name", "email", "password_hash", "role", "created_at"],
+    "projects": ["_id", "name", "description", "owner_id", "status", "start_date", "due_date", "created_at"],
+    "tasks": ["_id", "project_id", "title", "description", "assigned_to", "created_by", "status", "priority", "due_date"],
+    "project_members": ["_id", "project_id", "user_id", "role", "joined_at"],
+    "comments": ["_id", "task_id", "user_id", "text", "created_at"],
+    "activities": ["_id", "user_id", "project_id", "task_id", "action", "created_at"],
+    "notifications": ["_id", "recipient_id", "message", "is_read", "created_at"]
+}
+
+def verify_mongo_schema():
     print("Checking MongoDB status...")
     status = mongo.get_mongo_status()
     print("Status:", status)
 
     if not status["connected"]:
         print("\n❌ Could not connect to MongoDB at", status["uri"])
-        print("Please start MongoDB Server or check your connection string in backend/.env.")
+        print("Please start MongoDB Server service or check your connection string in backend/.env.")
         return False
 
     db = mongo.get_db()
-    fallback = mongo._load_fallback()
+    existing_colls = db.list_collection_names()
+    print(f"\nConnected to database '{db.name}'. Existing collections: {existing_colls}\n")
 
-    print("\nConnected to live MongoDB! Syncing fallback data to MongoDB collections...")
+    all_valid = True
+    for coll_name, expected_fields in EXPECTED_COLLECTIONS.items():
+        if coll_name not in existing_colls:
+            print(f"❌ Collection '{coll_name}' is missing!")
+            all_valid = False
+            continue
 
-    # 1. Sync Users
-    users = fallback.get("users", [])
-    synced_users = 0
-    for u in users:
-        u_copy = dict(u)
-        uid = u_copy.pop("id", None)
-        query = {"username": u_copy.get("username")}
-        if not db.users.find_one(query):
-            db.users.insert_one(u_copy)
-            synced_users += 1
-    print(f"[OK] Synced {synced_users} new users into MongoDB collection 'users'")
+        count = db[coll_name].count_documents({})
+        doc = db[coll_name].find_one()
+        fields_present = list(doc.keys()) if doc else []
+        missing_fields = [f for f in expected_fields if f not in fields_present] if doc else []
 
-    # 2. Sync Team Members
-    team = fallback.get("team_members", [])
-    synced_team = 0
-    for m in team:
-        m_copy = dict(m)
-        m_copy.pop("id", None)
-        query = {"name": m_copy.get("name")}
-        if not db.team_members.find_one(query):
-            db.team_members.insert_one(m_copy)
-            synced_team += 1
-    print(f"[OK] Synced {synced_team} team members into MongoDB collection 'team_members'")
+        if missing_fields:
+            print(f"[WARN] Collection '{coll_name}': {count} documents (Missing expected fields: {missing_fields})")
+            all_valid = False
+        else:
+            print(f"[OK] Collection '{coll_name}': {count} documents. Schema matches: {expected_fields}")
 
-    # 3. Sync Projects
-    projects = fallback.get("projects", [])
-    synced_projects = 0
-    for p in projects:
-        p_copy = dict(p)
-        pid = p_copy.pop("id", None)
-        query = {"key": p_copy.get("key")}
-        if not db.projects.find_one(query):
-            db.projects.insert_one(p_copy)
-            synced_projects += 1
-    print(f"[OK] Synced {synced_projects} projects into MongoDB collection 'projects'")
-
-    # 4. Sync Tasks
-    tasks = fallback.get("tasks", [])
-    synced_tasks = 0
-    for t in tasks:
-        t_copy = dict(t)
-        tid = t_copy.pop("id", None)
-        query = {"taskKey": t_copy.get("taskKey")}
-        if not db.tasks.find_one(query):
-            db.tasks.insert_one(t_copy)
-            synced_tasks += 1
-    print(f"[OK] Synced {synced_tasks} tasks into MongoDB collection 'tasks'")
-
-    print("\nAll data is now live in MongoDB! You can refresh MongoDB Compass to see 'taskflow_db'!")
-    return True
+    if all_valid:
+        print("\n[SUCCESS] All 7 collections in 'taskflow_db' match the exact requested MongoDB schema!")
+    else:
+        print("\nSome collections or fields differ. Run migrate_to_schema.py to rectify.")
+    return all_valid
 
 if __name__ == "__main__":
-    sync_data()
+    verify_mongo_schema()

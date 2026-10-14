@@ -41,7 +41,7 @@ export default function TeamView({
 
       setMessage({
         type: 'success',
-        text: `Invitation sent to ${res.targetUser?.name || query}! They can accept or decline in their Notification Bell.`
+        text: res.message || `Added ${res.targetUser?.name || query} to your team!`
       });
       setSearchAccountQuery('');
       if (onRefreshTeam) {
@@ -176,14 +176,14 @@ export default function TeamView({
             color: 'var(--text-primary)',
             margin: 0
           }}>
-            Invite Teammates
+            Add & Invite Teammates
           </h2>
           <p style={{
             fontSize: '0.875rem',
             color: 'var(--text-secondary)',
             marginTop: '0.35rem'
           }}>
-            Search by email or employee ID to send an invitation. They will be notified in their Notification Bell to accept or decline.
+            Search by registered email or employee ID to add them to your team list.
           </p>
         </div>
 
@@ -259,10 +259,10 @@ export default function TeamView({
             {finding ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                <span>Sending Invitation...</span>
+                <span>Adding to Team...</span>
               </>
             ) : (
-              <span>Send Invitation</span>
+              <span>Add to Team</span>
             )}
           </button>
         </form>

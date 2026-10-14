@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Home as HomeIcon,
   Folder,
@@ -23,7 +23,7 @@ import {
   LogOut,
   FileSpreadsheet
 } from 'lucide-react';
-import { api } from './api';
+import { api, invalidateApiCache } from './api';
 import Navbar from './components/Navbar';
 import KanbanBoard from './components/KanbanBoard';
 import ListView from './components/ListView';
@@ -242,16 +242,19 @@ export default function App() {
     return false;
   };
 
-  // Load Projects, Team & Global Tasks on mount
+  const isInitialMount = useRef(true);
+
+  // Load Projects, Team, Tasks & Notifications once on initial mount
   useEffect(() => {
     loadInitialData();
-    if (currentUser) {
-      fetchNotifications();
-    }
   }, []);
 
-  // Reload projects, team & notifications when currentUser changes
+  // Reload projects & team only when user genuinely changes (e.g. login/switch)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (currentUser) {
       const ownerKey = currentUser?.email || currentUser?.id || currentUser?._id;
       const userParams = {
@@ -347,14 +350,19 @@ export default function App() {
         userEmail: currentUser?.email,
         userId: currentUser?.id || currentUser?._id
       };
-      const [projs, team, allT] = await Promise.all([
+      const promises = [
         api.getProjects(userParams),
         api.getTeam(ownerKey),
         api.getTasks()
-      ]);
+      ];
+      if (currentUser?.email) {
+        promises.push(api.getNotifications({ userEmail: currentUser.email }));
+      }
+      const [projs, team, allT, notifs] = await Promise.all(promises);
       setProjects(projs);
       setTeamMembers(team);
       setAllTasks(allT);
+      if (notifs) setNotifications(notifs);
       const myProjs = projs.filter(p => isUserProject(p, currentUser));
       if (myProjs.length > 0 && !selectedProjectId) {
         setSelectedProjectId(myProjs[0].id);
@@ -376,7 +384,6 @@ export default function App() {
         priority: priorityFilter || undefined,
       });
       setTasks(data);
-      api.getTasks().then(setAllTasks).catch(() => {});
     } catch (err) {
       console.error('Error loading tasks:', err);
     } finally {
@@ -522,6 +529,13 @@ export default function App() {
       const created = await api.createTask(data);
       setTasks(prev => [...prev, created]);
       setAllTasks(prev => [...prev, created]);
+      if (selectedProjectId) {
+        api.getProject(selectedProjectId).then(p => {
+          if (p) {
+            setProjects(prev => prev.map(old => old.id === p.id ? p : old));
+          }
+        }).catch(() => {});
+      }
     }
     setCurrentSection('projects');
     setProjectSubView('board');
@@ -952,6 +966,7 @@ export default function App() {
                   teamMembers={teamMembers}
                   currentUser={currentUser}
                   onUpdateProject={(updatedProj) => {
+                    invalidateApiCache();
                     setProjects(prev => prev.map(p => p.id === updatedProj.id ? updatedProj : p));
                   }}
                 />

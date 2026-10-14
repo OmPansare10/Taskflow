@@ -147,6 +147,27 @@ class ProjectLeaveView(APIView):
         updated = mongo.leave_project(project_id, user_data)
         return Response(updated or {"success": True, "message": "Successfully left the project"})
 
+class ProjectEligibleAssigneesView(APIView):
+    def get(self, request, project_id):
+        user_email = (
+            request.query_params.get("userEmail")
+            or request.query_params.get("user_email")
+            or request.headers.get("X-User-Email")
+        )
+        user_id = (
+            request.query_params.get("userId")
+            or request.query_params.get("user_id")
+            or request.headers.get("X-User-Id")
+        )
+        strategy = request.query_params.get("strategy")
+        res = mongo.get_eligible_assignees_for_project(
+            project_id,
+            user_email=user_email,
+            user_id=user_id,
+            strategy=strategy
+        )
+        return Response(res)
+
 class TaskListCreateView(APIView):
     def get(self, request):
         project_id = request.query_params.get("projectId")
@@ -175,8 +196,13 @@ class TaskListCreateView(APIView):
                 "error": "Permission denied: Only the project manager can create tasks in this project."
             }, status=status.HTTP_403_FORBIDDEN)
 
-        created = mongo.create_task(data)
-        return Response(created, status=status.HTTP_201_CREATED)
+        try:
+            created = mongo.create_task(data)
+            return Response(created, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": "Failed to create task: " + str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TaskDetailView(APIView):
     def get(self, request, task_id):
@@ -196,8 +222,13 @@ class TaskDetailView(APIView):
                 "error": "Permission denied: Only project members or manager can update task."
             }, status=status.HTTP_403_FORBIDDEN)
 
-        updated = mongo.update_task(task_id, request.data)
-        return Response(updated)
+        try:
+            updated = mongo.update_task(task_id, request.data)
+            return Response(updated)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": "Failed to update task: " + str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, task_id):
         task = mongo.get_task_by_id(task_id)
@@ -284,7 +315,7 @@ class ProjectActivityExportView(APIView):
             if db is not None:
                 u_doc = db.users.find_one({"email": user_email})
                 if u_doc:
-                    name_found = f"{u_doc.get('firstName', '')} {u_doc.get('lastName', '')}".strip()
+                    name_found = f"{u_doc.get('first_name') or u_doc.get('firstName') or ''} {u_doc.get('last_name') or u_doc.get('lastName') or ''}".strip()
                     if name_found:
                         manager_name = name_found
 
@@ -332,7 +363,7 @@ class TeamMembersListView(APIView):
 
 class TeamMemberDetailView(APIView):
     def delete(self, request, member_id):
-        owner = request.query_params.get("owner") or request.headers.get("X-User-Email")
+        owner = request.query_params.get("owner") or request.headers.get("X-User-Email") or request.headers.get("X-User-Id")
         mongo.delete_team_member(member_id, owner=owner)
         return Response({"success": True, "message": "Team member removed successfully"})
 

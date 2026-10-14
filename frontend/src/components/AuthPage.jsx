@@ -83,7 +83,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onGoHom
       setFormData({
         firstName: 'Om',
         lastName: 'Pansare',
-        email: 'om@gmail.com',
+        email: 'om.pansare10@gmail.com',
         password: '123456',
         role: 'Backend Engineer'
       });
