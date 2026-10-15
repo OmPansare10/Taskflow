@@ -106,5 +106,5 @@ In your **Vercel Dashboard** (`https://vercel.com`):
 - [x] `frontend/src/api.js` updated to support `VITE_API_URL` and `taskflow-2-bzh0.onrender.com`.
 - [x] Backend `settings.py` updated to support `MONGO_URI`, `DATABASE_NAME`, CORS, CSRF, and host restrictions.
 - [x] Backend `mongo.py` updated to sanitize credentials from status endpoints and support cloud connection timeouts.
-- [ ] Run `python scripts/migrate_local_mongodb_to_atlas.py --target-uri "<YOUR_ATLAS_URI>"`.
-- [ ] Sign in on `https://taskflow-six-phi-99.vercel.app` using `om.pansare10@gmail.com` and password `123456`.
+- [x] Run `python scripts/migrate_local_mongodb_to_atlas.py`: **Completed! (All 136 docs migrated to Atlas & verified)**.
+- [ ] Add `MONGO_URI` to Render Environment Variables and test login on Vercel.
