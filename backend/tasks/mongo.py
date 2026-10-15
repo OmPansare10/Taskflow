@@ -9,40 +9,77 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 _assignment_lock = threading.Lock()
+_client_lock = threading.Lock()
 _mongo_client = None
+
+def _sanitize_mongo_uri(uri):
+    if not uri:
+        return "Not configured"
+    import re
+    if "mongodb+srv" in uri:
+        masked = re.sub(r'://([^:]+):([^@]+)@', r'://\1:****@', uri)
+        return masked
+    elif "@" in uri:
+        return re.sub(r'://([^:]+):([^@]+)@', r'://\1:****@', uri)
+    return uri
 
 def get_mongo_client():
     global _mongo_client
     if _mongo_client is None:
-        try:
-            client = MongoClient(
-                settings.MONGODB_URI,
-                serverSelectionTimeoutMS=2000,
-                connectTimeoutMS=2000
-            )
-            client.admin.command('ping')
-            _mongo_client = client
-        except Exception:
-            _mongo_client = None
+        with _client_lock:
+            if _mongo_client is None:
+                uri = getattr(settings, 'MONGODB_URI', None) or getattr(settings, 'MONGO_URI', 'mongodb://localhost:27017')
+                try:
+                    # Allow 5000ms for cloud DNS SRV resolution and TLS handshake on Atlas
+                    timeout_ms = 5000 if 'mongodb+srv' in uri else 2000
+                    client = MongoClient(
+                        uri,
+                        serverSelectionTimeoutMS=timeout_ms,
+                        connectTimeoutMS=timeout_ms
+                    )
+                    client.admin.command('ping')
+                    _mongo_client = client
+                except Exception as e:
+                    _mongo_client = None
     return _mongo_client
 
 def is_mongo_alive():
-    return get_mongo_client() is not None
+    try:
+        client = get_mongo_client()
+        if client is not None:
+            client.admin.command('ping')
+            return True
+        return False
+    except Exception:
+        return False
 
 def get_mongo_status():
     alive = is_mongo_alive()
+    raw_uri = getattr(settings, 'MONGODB_URI', '') or getattr(settings, 'MONGO_URI', '')
+    is_atlas = "mongodb+srv" in raw_uri
+    db_name = getattr(settings, 'MONGODB_DB_NAME', 'taskflow')
+    
+    if alive:
+        msg = f"Connected to MongoDB Atlas cluster ({db_name})" if is_atlas else f"Connected to local MongoDB server ({db_name})"
+    else:
+        if is_atlas:
+            msg = "MongoDB Atlas is unreachable. Verify MONGO_URI in Render environment variables and ensure Atlas Network Access allows 0.0.0.0/0."
+        else:
+            msg = "MongoDB is offline at localhost:27017. Please ensure MongoDB service is running."
+
     return {
         "connected": alive,
-        "mode": "mongodb",
-        "uri": settings.MONGODB_URI,
-        "database": settings.MONGODB_DB_NAME,
-        "message": "Connected to live MongoDB server" if alive else "MongoDB is offline at localhost:27017. Please ensure MongoDB service is running."
+        "mode": "mongodb_atlas" if is_atlas else "mongodb_local",
+        "uri": _sanitize_mongo_uri(raw_uri),
+        "database": db_name,
+        "message": msg
     }
 
 def get_db():
     client = get_mongo_client()
     if client is not None:
-        return client[settings.MONGODB_DB_NAME]
+        db_name = getattr(settings, 'MONGODB_DB_NAME', 'taskflow')
+        return client[db_name]
     return None
 
 # ----------------- Helpers -----------------

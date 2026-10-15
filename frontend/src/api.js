@@ -1,5 +1,5 @@
 const getApiBase = () => {
-  const envBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  const envBase = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '').trim();
   if (envBase) {
     const clean = envBase.replace(/\/$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
@@ -11,7 +11,7 @@ const getApiBase = () => {
       return '/api';
     }
   }
-  return 'https://taskflow-1-y4rn.onrender.com/api';
+  return 'https://taskflow-2-bzh0.onrender.com/api';
 };
 
 const API_BASE = getApiBase();

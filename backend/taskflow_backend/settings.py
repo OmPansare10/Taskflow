@@ -28,9 +28,20 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-b=0qxyyb5ybrbl2cssnj7r)_=s
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['*']
-
-
+# Host configuration
+env_hosts = os.getenv('ALLOWED_HOSTS')
+if env_hosts:
+    ALLOWED_HOSTS = [h.strip() for h in env_hosts.split(',') if h.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = [
+        'localhost',
+        '127.0.0.1',
+        '.onrender.com',
+        'taskflow-2-bzh0.onrender.com',
+        'taskflow-1-y4rn.onrender.com',
+    ]
 
 # Application definition
 
@@ -65,12 +76,49 @@ try:
 except ImportError:
     pass
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS and CSRF configuration
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True  # Safe for public REST API; also configured origins below
+CORS_ALLOWED_ORIGINS = [
+    'https://taskflow-six-phi-99.vercel.app',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+extra_cors = os.getenv('CORS_ALLOWED_ORIGINS')
+if extra_cors:
+    for origin in extra_cors.split(','):
+        cleaned = origin.strip().rstrip('/')
+        if cleaned and cleaned not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(cleaned)
 
-# MongoDB Configuration
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "taskflow_db")
+CSRF_TRUSTED_ORIGINS = [
+    'https://taskflow-six-phi-99.vercel.app',
+    'https://taskflow-2-bzh0.onrender.com',
+    'https://taskflow-1-y4rn.onrender.com',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+# MongoDB Configuration - Support both MONGODB_URI and MONGO_URI
+MONGODB_URI = (
+    os.getenv("MONGODB_URI")
+    or os.getenv("MONGO_URI")
+    or "mongodb://localhost:27017"
+).strip()
+
+# Support both DATABASE_NAME and MONGODB_DB_NAME
+raw_db_name = os.getenv("DATABASE_NAME") or os.getenv("MONGODB_DB_NAME")
+if raw_db_name:
+    MONGODB_DB_NAME = raw_db_name.strip()
+else:
+    # If using remote Atlas cluster, default to 'taskflow', otherwise local 'taskflow_db'
+    MONGODB_DB_NAME = "taskflow" if "mongodb+srv" in MONGODB_URI else "taskflow_db"
+
+# Aliases for compatibility
+MONGO_URI = MONGODB_URI
+DATABASE_NAME = MONGODB_DB_NAME
 
 
 ROOT_URLCONF = 'taskflow_backend.urls'
