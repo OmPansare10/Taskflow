@@ -249,13 +249,9 @@ export default function App() {
     loadInitialData();
   }, []);
 
-  // Reload projects & team only when user genuinely changes (e.g. login/switch)
+  // Reload projects & team whenever user changes or logs in
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    if (currentUser) {
+    if (currentUser?.email) {
       const ownerKey = currentUser?.email || currentUser?.id || currentUser?._id;
       const userParams = {
         userEmail: currentUser?.email,
@@ -264,20 +260,20 @@ export default function App() {
       Promise.all([
         api.getProjects(userParams),
         api.getTeam(ownerKey),
+        api.getTasks(),
         api.getNotifications({ userEmail: currentUser.email })
-      ]).then(([pList, tList, nList]) => {
+      ]).then(([pList, tList, allT, nList]) => {
         setProjects(pList);
         setTeamMembers(tList);
-        setNotifications(nList);
+        setAllTasks(allT);
+        if (nList) setNotifications(nList);
         const myProjs = pList.filter(p => isUserProject(p, currentUser));
-        if (myProjs.length > 0) {
+        if (myProjs.length > 0 && !selectedProjectId) {
           setSelectedProjectId(myProjs[0].id);
-        } else {
-          setSelectedProjectId(null);
         }
       }).catch(console.error);
     }
-  }, [currentUser]);
+  }, [currentUser?.email, currentUser?.id]);
 
   // Periodic polling for notifications (every 7 seconds) and on window focus
   useEffect(() => {
@@ -398,15 +394,34 @@ export default function App() {
   // ---------------- Auth Handlers ----------------
   const handleAuthSuccess = (user) => {
     setCurrentUser(user);
-    localStorage.setItem('taskflow_user', JSON.stringify(user));
+    try {
+      localStorage.setItem('taskflow_user', JSON.stringify(user));
+    } catch (e) {}
     if (user.role && user.role.includes('Manager')) {
       setActiveRole('manager');
     } else {
       setActiveRole('member');
     }
-    // Refresh team list to include newly registered user and teammates
     const ownerKey = user.email || user.id || user._id;
-    api.getTeam(ownerKey).then(setTeamMembers).catch(() => {});
+    const userParams = {
+      userEmail: user.email,
+      userId: user.id || user._id
+    };
+    Promise.all([
+      api.getProjects(userParams),
+      api.getTeam(ownerKey),
+      api.getTasks(),
+      api.getNotifications({ userEmail: user.email })
+    ]).then(([pList, tList, allT, nList]) => {
+      setProjects(pList);
+      setTeamMembers(tList);
+      setAllTasks(allT);
+      if (nList) setNotifications(nList);
+      const myProjs = pList.filter(p => isUserProject(p, user));
+      if (myProjs.length > 0) {
+        setSelectedProjectId(myProjs[0].id);
+      }
+    }).catch(console.error);
     setPageView('workspace');
   };
 
