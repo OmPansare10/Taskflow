@@ -77,15 +77,27 @@ except ImportError:
     pass
 
 # CORS and CSRF configuration
+from corsheaders.defaults import default_headers
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True  # Safe for public REST API; also configured origins below
 CORS_ALLOWED_ORIGINS = [
     'https://taskflow-six-phi-99.vercel.app',
+    'https://taskflow-git-main-om-pansare.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-user-email',
+    'x-user-id',
+    'x-user-name',
+]
+
 extra_cors = os.getenv('CORS_ALLOWED_ORIGINS')
 if extra_cors:
     for origin in extra_cors.split(','):
@@ -95,6 +107,8 @@ if extra_cors:
 
 CSRF_TRUSTED_ORIGINS = [
     'https://taskflow-six-phi-99.vercel.app',
+    'https://taskflow-git-main-om-pansare.vercel.app',
+    'https://*.vercel.app',
     'https://taskflow-2-bzh0.onrender.com',
     'https://taskflow-1-y4rn.onrender.com',
     'http://localhost:5173',
