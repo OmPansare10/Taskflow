@@ -70,11 +70,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-try:
-    import whitenoise
+import importlib.util
+
+if importlib.util.find_spec("whitenoise") is not None:
     MIDDLEWARE.insert(2, 'whitenoise.middleware.WhiteNoiseMiddleware')
-except ImportError:
-    pass
 
 # CORS and CSRF configuration
 from corsheaders.defaults import default_headers
@@ -212,11 +211,8 @@ STORAGES = {
     },
 }
 
-try:
-    import whitenoise
+if importlib.util.find_spec("whitenoise") is not None:
     STORAGES["staticfiles"]["BACKEND"] = "whitenoise.storage.CompressedStaticFilesStorage"
-except ImportError:
-    pass
 
 
 # Email
