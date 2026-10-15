@@ -23,12 +23,32 @@ def _sanitize_mongo_uri(uri):
         return re.sub(r'://([^:]+):([^@]+)@', r'://\1:****@', uri)
     return uri
 
+def _normalize_mongo_uri(uri):
+    if not uri or not isinstance(uri, str):
+        return uri
+    import urllib.parse
+    cleaned = uri.strip()
+    for prefix in ["mongodb+srv://", "mongodb://"]:
+        if cleaned.startswith(prefix):
+            rest = cleaned[len(prefix):]
+            if "@" in rest:
+                last_at = rest.rfind("@")
+                userinfo = rest[:last_at]
+                hosts_query = rest[last_at + 1:]
+                if ":" in userinfo:
+                    user, pwd = userinfo.split(":", 1)
+                    pwd_decoded = urllib.parse.unquote(pwd)
+                    pwd_encoded = urllib.parse.quote_plus(pwd_decoded)
+                    return f"{prefix}{user}:{pwd_encoded}@{hosts_query}"
+    return cleaned
+
 def get_mongo_client():
     global _mongo_client
     if _mongo_client is None:
         with _client_lock:
             if _mongo_client is None:
-                uri = getattr(settings, 'MONGODB_URI', None) or getattr(settings, 'MONGO_URI', 'mongodb://localhost:27017')
+                raw_uri = getattr(settings, 'MONGODB_URI', None) or getattr(settings, 'MONGO_URI', 'mongodb://localhost:27017')
+                uri = _normalize_mongo_uri(raw_uri)
                 try:
                     # Allow 5000ms for cloud DNS SRV resolution and TLS handshake on Atlas
                     timeout_ms = 5000 if 'mongodb+srv' in uri else 2000
